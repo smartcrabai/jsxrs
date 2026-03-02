@@ -4,7 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1.49.0", features = ["rt", "macros"] }
+bytes-str = "0.2.7"
+encre-css = "0.20.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+swc_common = "19.0.0"
+swc_ecma_ast = "21.0.0"
+swc_ecma_parser = "35.0.0"
+thiserror = "2.0.18"
+
 
 [profile.release]
 codegen-units = 1
