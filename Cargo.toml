@@ -1,0 +1,21 @@
+[package]
+name = "jsxrs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.49.0", features = ["rt", "macros"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true
+
+[package.metadata.dist]
+cargo-dist-version = "0.31.0"
+ci = "github"
+installers = ["shell", "homebrew"]
+targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]
+publish-jobs = ["homebrew"]
+install-path = "CARGO_HOME"
+tap = "takumi3488/homebrew-tap"
