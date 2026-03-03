@@ -57,8 +57,8 @@ fn camel_to_kebab(s: &str) -> String {
 fn render_style_object(obj: &ObjectLit) -> String {
     let mut parts = Vec::new();
     for prop in &obj.props {
-        if let PropOrSpread::Prop(prop) = prop {
-            if let Prop::KeyValue(KeyValueProp { key, value }) = prop.as_ref() {
+        if let PropOrSpread::Prop(prop) = prop
+            && let Prop::KeyValue(KeyValueProp { key, value }) = prop.as_ref() {
                 let key_str = match key {
                     PropName::Ident(id) => camel_to_kebab(&id.sym),
                     PropName::Str(s) => camel_to_kebab(&s.value.to_string_lossy()),
@@ -71,7 +71,6 @@ fn render_style_object(obj: &ObjectLit) -> String {
                 };
                 parts.push(format!("{key_str}: {val_str}"));
             }
-        }
     }
     parts.join("; ")
 }
@@ -137,15 +136,14 @@ fn render_expr_attr(
         swc_ecma_ast::JSXExpr::JSXEmptyExpr(_) => return Ok(None),
     };
 
-    if raw_name == "style" {
-        if let Expr::Object(obj) = expr.as_ref() {
+    if raw_name == "style"
+        && let Expr::Object(obj) = expr.as_ref() {
             let css = render_style_object(obj);
             return Ok(Some(RenderedAttr {
                 name: html_name.to_string(),
                 value: Some(css),
             }));
         }
-    }
 
     if let Expr::Lit(Lit::Bool(b)) = expr.as_ref() {
         return if b.value {

@@ -173,11 +173,10 @@ fn render_html_tag(
     let mut out = format!("<{tag}");
     for attr in &el.opening.attrs {
         if let Some(r) = attributes::render_jsx_attr(attr, ctx)? {
-            if r.name == "class" {
-                if let Some(ref v) = r.value {
+            if r.name == "class"
+                && let Some(ref v) = r.value {
                     state.class_names.push(v.clone());
                 }
-            }
             out.push(' ');
             out.push_str(&r.name);
             if let Some(v) = &r.value {
