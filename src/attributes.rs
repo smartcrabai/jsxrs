@@ -58,19 +58,20 @@ fn render_style_object(obj: &ObjectLit) -> String {
     let mut parts = Vec::new();
     for prop in &obj.props {
         if let PropOrSpread::Prop(prop) = prop
-            && let Prop::KeyValue(KeyValueProp { key, value }) = prop.as_ref() {
-                let key_str = match key {
-                    PropName::Ident(id) => camel_to_kebab(&id.sym),
-                    PropName::Str(s) => camel_to_kebab(&s.value.to_string_lossy()),
-                    _ => continue,
-                };
-                let val_str = match value.as_ref() {
-                    Expr::Lit(Lit::Str(s)) => s.value.to_string_lossy().into_owned(),
-                    Expr::Lit(Lit::Num(n)) => n.value.to_string(),
-                    _ => continue,
-                };
-                parts.push(format!("{key_str}: {val_str}"));
-            }
+            && let Prop::KeyValue(KeyValueProp { key, value }) = prop.as_ref()
+        {
+            let key_str = match key {
+                PropName::Ident(id) => camel_to_kebab(&id.sym),
+                PropName::Str(s) => camel_to_kebab(&s.value.to_string_lossy()),
+                _ => continue,
+            };
+            let val_str = match value.as_ref() {
+                Expr::Lit(Lit::Str(s)) => s.value.to_string_lossy().into_owned(),
+                Expr::Lit(Lit::Num(n)) => n.value.to_string(),
+                _ => continue,
+            };
+            parts.push(format!("{key_str}: {val_str}"));
+        }
     }
     parts.join("; ")
 }
@@ -137,13 +138,14 @@ fn render_expr_attr(
     };
 
     if raw_name == "style"
-        && let Expr::Object(obj) = expr.as_ref() {
-            let css = render_style_object(obj);
-            return Ok(Some(RenderedAttr {
-                name: html_name.to_string(),
-                value: Some(css),
-            }));
-        }
+        && let Expr::Object(obj) = expr.as_ref()
+    {
+        let css = render_style_object(obj);
+        return Ok(Some(RenderedAttr {
+            name: html_name.to_string(),
+            value: Some(css),
+        }));
+    }
 
     if let Expr::Lit(Lit::Bool(b)) = expr.as_ref() {
         return if b.value {

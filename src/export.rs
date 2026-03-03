@@ -78,9 +78,10 @@ fn resolve_default_expr(
             for decl in vars {
                 if let Pat::Ident(pat) = &decl.name
                     && &*pat.sym == name
-                        && let Some(init) = &decl.init {
-                            return resolve_arrow_or_fn(init);
-                        }
+                    && let Some(init) = &decl.init
+                {
+                    return resolve_arrow_or_fn(init);
+                }
             }
             for decl in fns {
                 if &*decl.ident.sym == name {

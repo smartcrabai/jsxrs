@@ -38,9 +38,10 @@ fn classify_head_tag(html: &str) -> HeadTag {
         return HeadTag::Title;
     }
     if (trimmed.starts_with("<meta ") || trimmed.starts_with("<meta>"))
-        && let Some(name) = extract_meta_name(trimmed) {
-            return HeadTag::Meta { name };
-        }
+        && let Some(name) = extract_meta_name(trimmed)
+    {
+        return HeadTag::Meta { name };
+    }
     HeadTag::Other
 }
 
