@@ -1,0 +1,208 @@
+mod common;
+
+use jsxrs::render_string;
+use serde_json::json;
+
+use common::{extract_body, minimal_config};
+
+#[test]
+fn should_convert_classname_to_class_when_given_classname_attribute() {
+    // Given
+    let source = r#"export default function Page() {
+  return <div className="container">content</div>;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert_eq!(body, r#"<div class="container">content</div>"#);
+}
+
+#[test]
+fn should_convert_htmlfor_to_for_when_given_htmlfor_attribute() {
+    // Given
+    let source = r#"export default function Page() {
+  return <label htmlFor="email">Email</label>;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert_eq!(body, r#"<label for="email">Email</label>"#);
+}
+
+#[test]
+fn should_convert_style_object_to_css_string_when_given_camelcase_styles() {
+    // Given
+    let source = r#"export default function Page() {
+  return <div style={{color: 'red', fontSize: '14px', backgroundColor: 'blue'}}>styled</div>;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert!(body.contains(r#"style=""#));
+    assert!(body.contains("color: red"));
+    assert!(body.contains("font-size: 14px"));
+    assert!(body.contains("background-color: blue"));
+}
+
+#[test]
+fn should_render_boolean_attribute_name_only_when_value_is_true() {
+    // Given
+    let source = r#"export default function Page() {
+  return <input disabled={true} />;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert_eq!(body, "<input disabled>");
+}
+
+#[test]
+fn should_omit_boolean_attribute_when_value_is_false() {
+    // Given
+    let source = r#"export default function Page() {
+  return <input disabled={false} />;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert_eq!(body, "<input>");
+}
+
+#[test]
+fn should_exclude_event_handler_attributes_from_html_output() {
+    // Given
+    let source = r#"export default function Page() {
+  return <button onClick={handler} onMouseOver={handler}>click</button>;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert_eq!(body, "<button>click</button>");
+}
+
+#[test]
+fn should_pass_through_standard_html_attributes() {
+    // Given
+    let source = r#"export default function Page() {
+  return <a href="/link" target="_blank" rel="noopener">link</a>;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert_eq!(
+        body,
+        r#"<a href="/link" target="_blank" rel="noopener">link</a>"#
+    );
+}
+
+#[test]
+fn should_pass_through_data_attributes() {
+    // Given
+    let source = r#"export default function Page() {
+  return <div data-id="123" data-testid="item">content</div>;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert!(body.contains(r#"data-id="123""#));
+    assert!(body.contains(r#"data-testid="item""#));
+}
+
+#[test]
+fn should_convert_tabindex_to_lowercase_when_given_camelcase() {
+    // Given
+    let source = r#"export default function Page() {
+  return <div tabIndex={0}>focusable</div>;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert_eq!(body, r#"<div tabindex="0">focusable</div>"#);
+}
+
+#[test]
+fn should_render_shorthand_boolean_attribute_when_no_value_specified() {
+    // Given
+    let source = r#"export default function Page() {
+  return <input required />;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert_eq!(body, "<input required>");
+}
+
+#[test]
+fn should_render_dynamic_attribute_value_from_props() {
+    // Given
+    let source = r#"export default function Page(props) {
+  return <div id={props.elementId}>content</div>;
+}"#;
+    let config = minimal_config();
+    let props = json!({"elementId": "main-content"});
+
+    // When
+    let result = render_string(source, "page.jsx", &props, &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert_eq!(body, r#"<div id="main-content">content</div>"#);
+}
+
+#[test]
+fn should_handle_multiple_react_specific_attributes() {
+    // Given
+    let source = r#"export default function Page() {
+  return <div className="wrapper" tabIndex={-1}><label htmlFor="name">Name</label></div>;
+}"#;
+    let config = minimal_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    let body = extract_body(&result);
+    assert!(body.contains(r#"class="wrapper""#));
+    assert!(body.contains(r#"tabindex="-1""#));
+    assert!(body.contains(r#"for="name""#));
+}
