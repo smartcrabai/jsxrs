@@ -1,4 +1,4 @@
-export default function RootLayout() {
+export default function RootLayout(props) {
   return (
     <html>
       <body>{props.children}</body>

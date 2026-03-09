@@ -36,10 +36,10 @@ impl EvalContext {
 /// This sentinel is used to pass pre-rendered HTML through the layout chain
 /// without escaping.
 pub fn extract_raw_html(val: &Value) -> Option<&str> {
-    if let Value::Object(map) = val {
-        if let Some(Value::String(raw)) = map.get("__html") {
-            return Some(raw.as_str());
-        }
+    if let Value::Object(map) = val
+        && let Some(Value::String(raw)) = map.get("__html")
+    {
+        return Some(raw.as_str());
     }
     None
 }

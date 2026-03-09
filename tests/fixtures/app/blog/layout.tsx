@@ -1,5 +1,5 @@
-export default function BlogLayout() {
+export default function BlogLayout(props) {
   return (
-    <div class="blog-layout">{props.children}</div>
+    <div className="blog-layout">{props.children}</div>
   );
 }

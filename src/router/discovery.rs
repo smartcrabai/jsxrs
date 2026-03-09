@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 /// A discovered route entry.
 #[derive(Debug, Clone)]
 pub struct RouteEntry {
-    /// Axum path pattern (e.g., "/blog/:slug")
+    /// Axum path pattern (e.g., "/blog/{slug}")
     pub axum_path: String,
     /// Absolute path to the page file
     pub page_file: PathBuf,
@@ -84,14 +84,22 @@ enum Segment {
 }
 
 fn dir_name_to_segment(name: &str) -> Segment {
-    if name.starts_with('(') && name.ends_with(')') {
+    if name.starts_with('(') && name.ends_with(')') && name.len() > 2 {
         Segment::Group
     } else if name.starts_with("[...") && name.ends_with(']') {
         let param = &name[4..name.len() - 1];
-        Segment::CatchAll(param.to_string())
+        if param.is_empty() {
+            Segment::Static(name.to_string())
+        } else {
+            Segment::CatchAll(param.to_string())
+        }
     } else if name.starts_with('[') && name.ends_with(']') {
         let param = &name[1..name.len() - 1];
-        Segment::Dynamic(param.to_string())
+        if param.is_empty() {
+            Segment::Static(name.to_string())
+        } else {
+            Segment::Dynamic(param.to_string())
+        }
     } else {
         Segment::Static(name.to_string())
     }
