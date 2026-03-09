@@ -1,5 +1,7 @@
 [package]
+description = "A Rust library for rendering JSX/TSX to complete HTML documents at build-time or server-side."
 edition = "2024"
+license = "Apache-2.0"
 name = "jsxrs"
 version = "0.1.2"
 
