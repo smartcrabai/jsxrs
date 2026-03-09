@@ -5,7 +5,12 @@ license = "Apache-2.0"
 name = "jsxrs"
 version = "0.1.4"
 
+[features]
+default = []
+axum = ["dep:axum", "dep:tokio"]
+
 [dependencies]
+axum = { version = "0.8", optional = true }
 bytes-str = "0.2.7"
 encre-css = "0.20.1"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -14,6 +19,12 @@ swc_common = "19.0.0"
 swc_ecma_ast = "21.0.0"
 swc_ecma_parser = "35.0.0"
 thiserror = "2.0.18"
+tokio = { version = "1", features = ["rt"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+axum = "0.8"
+axum-test = "19"
 
 
 [profile.release]
