@@ -57,8 +57,7 @@ let path = PathBuf::from("src/page.tsx");
 let config = RenderConfig {
     pretty: true,
     base_dir: Some(PathBuf::from("src")),
-    head_elements: vec![],
-    tailwind: false,
+    ..Default::default()
 };
 let html = render_file(&path, &json!({}), &config).unwrap();
 ```
@@ -73,12 +72,13 @@ let config = RenderConfig {
     base_dir: Some(PathBuf::from(".")),    // Base directory for component resolution
     head_elements: vec![
         HeadElement::Title("My Page".to_string()),
-        HeadElement::Meta { 
-            name: "description".to_string(), 
-            content: "A wonderful page".to_string() 
+        HeadElement::Meta {
+            name: "description".to_string(),
+            content: "A wonderful page".to_string()
         },
     ],
     tailwind: false,                       // Enable Tailwind CSS generation
+    fragment: false,                       // Return fragment (body HTML only) instead of full document
 };
 ```
 
@@ -113,6 +113,33 @@ export default function Page() {
   );
 }
 ```
+
+### Fragment Rendering (HTMX)
+
+When using jsxrs as an HTMX backend, return a full HTML document for the initial page load and an HTML fragment for subsequent HTMX requests (identified by the `HX-Request` header).
+
+Set `fragment: true` to skip the document wrapper and return only the body HTML:
+
+```rust
+use jsxrs::{render_string, RenderConfig};
+use serde_json::json;
+
+// In your request handler:
+let is_htmx_request = request.headers().get("HX-Request").is_some();
+
+let config = RenderConfig {
+    fragment: is_htmx_request,
+    ..Default::default()
+};
+
+let html = render_string(source, "page.jsx", &props, &config).unwrap();
+// Returns full document for normal requests, body HTML only for HTMX requests
+```
+
+In fragment mode:
+- The `<!DOCTYPE html><html><head>...</head><body>...</body></html>` wrapper is omitted
+- `<Head>` component content is ignored (already loaded by the full-page response)
+- Tailwind CSS `<style>` tags are skipped (already loaded by the full-page response)
 
 ### Component Imports
 
@@ -216,6 +243,7 @@ Configuration for the rendering pipeline:
 | `base_dir` | `Option<PathBuf>` | Base directory for component resolution |
 | `head_elements` | `Vec<HeadElement>` | Static head elements to include |
 | `tailwind` | `bool` | Enable Tailwind CSS generation |
+| `fragment` | `bool` | Return body HTML only, skipping the full document wrapper |
 
 ### `HeadElement`
 

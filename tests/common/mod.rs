@@ -11,47 +11,41 @@ pub fn fixtures_dir() -> PathBuf {
 }
 
 pub fn minimal_config() -> RenderConfig {
-    RenderConfig {
-        pretty: false,
-        base_dir: None,
-        head_elements: Vec::new(),
-        tailwind: false,
-    }
+    RenderConfig::default()
 }
 
 pub fn pretty_config() -> RenderConfig {
     RenderConfig {
         pretty: true,
-        base_dir: None,
-        head_elements: Vec::new(),
-        tailwind: false,
+        ..Default::default()
     }
 }
 
 pub fn config_with_base_dir(base_dir: PathBuf) -> RenderConfig {
     RenderConfig {
-        pretty: false,
         base_dir: Some(base_dir),
-        head_elements: Vec::new(),
-        tailwind: false,
+        ..Default::default()
     }
 }
 
 pub fn config_with_tailwind() -> RenderConfig {
     RenderConfig {
-        pretty: false,
-        base_dir: None,
-        head_elements: Vec::new(),
         tailwind: true,
+        ..Default::default()
     }
 }
 
 pub fn config_with_head(head_elements: Vec<HeadElement>) -> RenderConfig {
     RenderConfig {
-        pretty: false,
-        base_dir: None,
         head_elements,
-        tailwind: false,
+        ..Default::default()
+    }
+}
+
+pub fn fragment_config() -> RenderConfig {
+    RenderConfig {
+        fragment: true,
+        ..Default::default()
     }
 }
 

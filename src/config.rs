@@ -11,10 +11,11 @@ pub enum HeadElement {
 }
 
 /// Configuration for the JSX-to-HTML rendering pipeline.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RenderConfig {
     pub pretty: bool,
     pub base_dir: Option<PathBuf>,
     pub head_elements: Vec<HeadElement>,
     pub tailwind: bool,
+    pub fragment: bool,
 }

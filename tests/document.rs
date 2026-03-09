@@ -3,7 +3,7 @@ mod common;
 use jsxrs::render_string;
 use serde_json::json;
 
-use common::{minimal_config, pretty_config};
+use common::{fragment_config, minimal_config, pretty_config};
 
 #[test]
 fn should_produce_complete_html_document_when_rendering_jsx() {
@@ -106,4 +106,64 @@ fn should_render_file_with_props_when_given_file_path_and_props() {
 
     // Then
     assert!(result.contains("<div>Hello, World!</div>"));
+}
+
+#[test]
+fn should_return_body_html_only_when_fragment_is_true() {
+    // Given
+    let source = r#"export default function Page() {
+  return <div>Hello</div>;
+}"#;
+    let config = fragment_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    assert!(!result.contains("<!DOCTYPE html>"));
+    assert!(!result.contains("<html>"));
+    assert!(!result.contains("<head>"));
+    assert!(!result.contains("<body>"));
+    assert_eq!(result, "<div>Hello</div>");
+}
+
+#[test]
+fn should_not_include_head_content_when_fragment_is_true() {
+    // Given
+    let source = r#"export default function Page() {
+  return (
+    <>
+      <Head><title>My Page</title></Head>
+      <div>content</div>
+    </>
+  );
+}"#;
+    let config = fragment_config();
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    assert!(!result.contains("<title>"));
+    assert!(result.contains("<div>content</div>"));
+}
+
+#[test]
+fn should_not_include_tailwind_style_when_fragment_is_true() {
+    // Given
+    let source = r#"export default function Page() {
+  return <div class="flex">Hello</div>;
+}"#;
+    let config = jsxrs::RenderConfig {
+        tailwind: true,
+        fragment: true,
+        ..Default::default()
+    };
+
+    // When
+    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+
+    // Then
+    assert!(!result.contains("<style>"));
+    assert!(result.contains(r#"<div class="flex">Hello</div>"#));
 }

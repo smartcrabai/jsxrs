@@ -35,6 +35,10 @@ pub fn render_string(
     let (module, _cm) = parser::parse_source(source, file_name)?;
     let (body_html, state) = renderer::render_module(&module.body, props, config)?;
 
+    if config.fragment {
+        return Ok(body_html);
+    }
+
     let head_parts = build_head(&state, config);
     let head_html = head_parts.join("");
 
