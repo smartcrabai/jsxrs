@@ -22,7 +22,7 @@ Add `jsxrs` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-jsxrs = "0.1.0"
+jsxrs = "0.1"
 ```
 
 ## Usage
