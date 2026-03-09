@@ -15,6 +15,7 @@ jsxrs parses JSX/TSX files and renders them to full HTML documents. It leverages
 - **Tailwind CSS Integration** - Automatically generate CSS from Tailwind class names
 - **TypeScript Codegen** - Generate Rust structs from TypeScript interfaces
 - **XSS Protection** - Automatic HTML escaping for user content
+- **File-based Routing for Axum** - Next.js App Router style file-system routing with layouts, dynamic segments, and catch-all routes
 
 ## Installation
 
@@ -23,6 +24,13 @@ Add `jsxrs` to your `Cargo.toml`:
 ```toml
 [dependencies]
 jsxrs = "0.1"
+```
+
+For file-based routing with Axum, enable the `axum` feature:
+
+```toml
+[dependencies]
+jsxrs = { version = "0.1", features = ["axum"] }
 ```
 
 ## Usage
@@ -141,6 +149,63 @@ In fragment mode:
 - `<Head>` component content is ignored (already loaded by the full-page response)
 - Tailwind CSS `<style>` tags are skipped (already loaded by the full-page response)
 
+### File-based Routing (Axum)
+
+Enable the `axum` feature flag and use `JsxRouter` to automatically build an Axum router from a directory of JSX/TSX files:
+
+```rust
+use jsxrs::router::JsxRouter;
+use jsxrs::RenderConfig;
+
+#[tokio::main]
+async fn main() {
+    let app = JsxRouter::new("./app")
+        .with_config(RenderConfig { tailwind: true, ..Default::default() })
+        .into_router()
+        .expect("failed to build router");
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+#### File Conventions
+
+| File/Directory | Purpose |
+|----------------|---------|
+| `page.tsx` / `page.jsx` | Route UI — renders at the route's URL |
+| `layout.tsx` / `layout.jsx` | Shared layout that wraps child pages (nestable) |
+| `[param]/` | Dynamic route segment — captures a URL parameter |
+| `[...slug]/` | Catch-all route — captures all remaining segments |
+| `(group)/` | Route group — organizes routes without affecting the URL |
+
+#### Directory Structure Example
+
+```
+app/
+├── layout.tsx              # Root layout (wraps all pages)
+├── page.tsx                # → GET /
+├── about/
+│   └── page.tsx            # → GET /about
+├── blog/
+│   ├── layout.tsx          # Blog layout (wraps blog pages)
+│   ├── page.tsx            # → GET /blog
+│   └── [slug]/
+│       └── page.tsx        # → GET /blog/:slug
+└── (marketing)/
+    └── contact/
+        └── page.tsx        # → GET /contact  (group doesn't affect URL)
+```
+
+Dynamic parameters are passed to components as props:
+
+```tsx
+// app/blog/[slug]/page.tsx
+export default function BlogPost(props) {
+  return <article><h1>{props.slug}</h1></article>;
+}
+```
+
 ### Component Imports
 
 Import and render other components:
@@ -231,6 +296,21 @@ pub fn generate_types(
     tsx_paths: &[impl AsRef<Path>],
     output_path: &Path,
 ) -> Result<(), JsxrsError>
+```
+
+### `JsxRouter`
+
+File-system based router for Axum (requires `axum` feature).
+
+```rust
+// Create a router from a directory
+pub fn new(app_dir: impl Into<PathBuf>) -> Self
+
+// Set rendering configuration
+pub fn with_config(self, config: RenderConfig) -> Self
+
+// Build an Axum Router from the discovered file-system routes
+pub fn into_router(self) -> Result<Router, JsxrsError>
 ```
 
 ### `RenderConfig`
