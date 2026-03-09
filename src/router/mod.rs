@@ -51,7 +51,7 @@ impl JsxRouter {
 
     /// Build an Axum `Router` from the discovered file-system routes.
     pub fn into_router(self) -> Result<Router, JsxrsError> {
-        let routes = discovery::scan_routes(&self.app_dir).map_err(|e| JsxrsError::Io(e))?;
+        let routes = discovery::scan_routes(&self.app_dir).map_err(JsxrsError::Io)?;
 
         let config = Arc::new(self.config);
         let mut router = Router::new();

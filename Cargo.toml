@@ -6,8 +6,8 @@ name = "jsxrs"
 version = "0.1.4"
 
 [features]
-default = []
 axum = ["dep:axum", "dep:tokio"]
+default = []
 
 [dependencies]
 axum = { version = "0.8", optional = true }
@@ -22,9 +22,9 @@ thiserror = "2.0.18"
 tokio = { version = "1", features = ["rt"], optional = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full"] }
 axum = "0.8"
 axum-test = "19"
+tokio = { version = "1", features = ["full"] }
 
 
 [profile.release]

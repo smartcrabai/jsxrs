@@ -26,6 +26,7 @@ fn route_priority(path: &str) -> (usize, String) {
     (dynamic_count, path.to_string())
 }
 
+#[allow(clippy::only_used_in_recursion)]
 fn collect_routes(
     app_dir: &Path,
     current_dir: &Path,

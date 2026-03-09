@@ -66,10 +66,10 @@ pub(crate) fn render_expr(
         Expr::Paren(p) => render_expr(&p.expr, ctx, config, imports, state),
         _ => {
             let val = eval::eval_expr(expr, ctx)?;
-            if let Value::Object(map) = &val {
-                if let Some(Value::String(raw)) = map.get("__html") {
-                    return Ok(raw.clone());
-                }
+            if let Value::Object(map) = &val
+                && let Some(Value::String(raw)) = map.get("__html")
+            {
+                return Ok(raw.clone());
             }
             Ok(escape::escape_html(&eval::value_to_string(&val)))
         }
