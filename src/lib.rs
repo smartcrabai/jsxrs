@@ -14,6 +14,9 @@ mod tailwind;
 
 pub mod codegen;
 
+#[cfg(feature = "axum")]
+pub mod router;
+
 pub use config::{HeadElement, RenderConfig};
 pub use error::JsxrsError;
 

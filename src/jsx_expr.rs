@@ -51,6 +51,9 @@ pub(crate) fn render_jsx_expression(
         }
         _ => {
             let val = eval::eval_expr(expr, ctx)?;
+            if let Some(raw) = eval::extract_raw_html(&val) {
+                return Ok(raw.to_owned());
+            }
             Ok(escape::escape_html(&eval::value_to_string(&val)))
         }
     }
