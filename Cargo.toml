@@ -3,7 +3,7 @@ description = "A Rust library for rendering JSX/TSX to complete HTML documents a
 edition = "2024"
 license = "Apache-2.0"
 name = "jsxrs"
-version = "0.1.2"
+version = "0.1.3"
 
 [dependencies]
 bytes-str = "0.2.7"
