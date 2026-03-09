@@ -17,13 +17,8 @@ pub fn scan_routes(app_dir: &Path) -> Result<Vec<RouteEntry>, std::io::Error> {
     let mut entries = Vec::new();
     collect_routes(&app_dir, &app_dir, "", &[], &mut entries)?;
     // Sort so that static routes come before dynamic ones
-    entries.sort_by(|a, b| route_priority(&a.axum_path).cmp(&route_priority(&b.axum_path)));
+    entries.sort_by_cached_key(|e| (e.axum_path.matches('{').count(), e.axum_path.clone()));
     Ok(entries)
-}
-
-fn route_priority(path: &str) -> (usize, String) {
-    let dynamic_count = path.matches('{').count();
-    (dynamic_count, path.to_string())
 }
 
 #[allow(clippy::only_used_in_recursion)]
@@ -34,11 +29,16 @@ fn collect_routes(
     parent_layouts: &[PathBuf],
     entries: &mut Vec<RouteEntry>,
 ) -> Result<(), std::io::Error> {
-    // Check for layout in current directory
-    let mut layouts = parent_layouts.to_vec();
-    if let Some(layout) = find_file(current_dir, "layout") {
-        layouts.push(layout);
-    }
+    // Check for layout in current directory; only clone parent list when extending
+    let extended_layouts;
+    let layouts: &[PathBuf] = if let Some(layout) = find_file(current_dir, "layout") {
+        let mut v = parent_layouts.to_vec();
+        v.push(layout);
+        extended_layouts = v;
+        &extended_layouts
+    } else {
+        parent_layouts
+    };
 
     // Check for page in current directory
     if let Some(page) = find_file(current_dir, "page") {
@@ -50,7 +50,7 @@ fn collect_routes(
         entries.push(RouteEntry {
             axum_path,
             page_file: page,
-            layouts: layouts.clone(),
+            layouts: layouts.to_vec(),
         });
     }
 
@@ -70,7 +70,7 @@ fn collect_routes(
             Segment::CatchAll(param) => format!("{url_prefix}/{{*{param}}}"),
             Segment::Group => url_prefix.to_string(), // no URL effect
         };
-        collect_routes(app_dir, &entry.path(), &child_prefix, &layouts, entries)?;
+        collect_routes(app_dir, &entry.path(), &child_prefix, layouts, entries)?;
     }
 
     Ok(())

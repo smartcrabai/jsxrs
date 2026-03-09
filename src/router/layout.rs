@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
@@ -27,16 +27,9 @@ pub fn render_with_layouts(
 
     // Apply layouts from innermost to outermost
     for layout_path in layouts.iter().rev() {
-        let mut layout_props = match props {
-            Value::Object(map) => Value::Object(map.clone()),
-            _ => Value::Object(serde_json::Map::new()),
-        };
-        if let Value::Object(ref mut map) = layout_props {
-            map.insert(
-                "children".to_string(),
-                serde_json::json!({ "__html": html }),
-            );
-        }
+        let mut layout_props_map = props.as_object().cloned().unwrap_or_default();
+        layout_props_map.insert("children".into(), serde_json::json!({ "__html": html }));
+        let layout_props = Value::Object(layout_props_map);
         let layout_config = RenderConfig {
             fragment: true,
             base_dir: Some(layout_path.parent().unwrap_or(Path::new(".")).to_path_buf()),
@@ -47,5 +40,3 @@ pub fn render_with_layouts(
 
     Ok(html)
 }
-
-use std::path::PathBuf;

@@ -32,6 +32,18 @@ impl EvalContext {
     }
 }
 
+/// If `val` is a `{ "__html": "..." }` object, return the raw HTML string.
+/// This sentinel is used to pass pre-rendered HTML through the layout chain
+/// without escaping.
+pub fn extract_raw_html(val: &Value) -> Option<&str> {
+    if let Value::Object(map) = val {
+        if let Some(Value::String(raw)) = map.get("__html") {
+            return Some(raw.as_str());
+        }
+    }
+    None
+}
+
 /// JS truthiness rules: null, false, 0, "" are falsy.
 pub fn is_truthy(val: &Value) -> bool {
     match val {

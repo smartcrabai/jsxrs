@@ -62,21 +62,20 @@ impl JsxRouter {
                 config: Arc::clone(&config),
             };
 
-            let has_dynamic = entry.axum_path.contains('{');
-
-            if has_dynamic {
-                let h = route_handler.clone();
+            if entry.axum_path.contains('{') {
                 router = router.route(
                     &entry.axum_path,
                     get(
                         move |path: axum::extract::Path<
                             std::collections::HashMap<String, String>,
-                        >| { handler::handle_dynamic(path, h) },
+                        >| { handler::handle_dynamic(path, route_handler) },
                     ),
                 );
             } else {
-                let h = route_handler.clone();
-                router = router.route(&entry.axum_path, get(move || handler::handle_static(h)));
+                router = router.route(
+                    &entry.axum_path,
+                    get(move || handler::handle_static(route_handler)),
+                );
             }
         }
 
