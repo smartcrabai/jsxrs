@@ -74,10 +74,13 @@ pub fn merge_head(jsx_head: &HeadContent, api_elements: &[HeadElement]) -> Vec<S
     }
 
     for entry in &jsx_head.entries {
-        match &entry.tag {
-            HeadTag::Title if has_api_title => continue,
-            HeadTag::Meta { name } if api_meta_names.contains(&name.as_str()) => continue,
-            _ => result.push(entry.html.clone()),
+        let skip = match &entry.tag {
+            HeadTag::Title => has_api_title,
+            HeadTag::Meta { name } => api_meta_names.contains(&name.as_str()),
+            HeadTag::Other => false,
+        };
+        if !skip {
+            result.push(entry.html.clone());
         }
     }
 

@@ -27,6 +27,13 @@ axum-test = "=19.1.1"
 tokio = { version = "=1.50.0", features = ["full"] }
 
 
+[lints.clippy]
+allow_attributes = "deny"
+dbg_macro = "deny"
+expect_used = "deny"
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+
 [profile.release]
 codegen-units = 1
 lto = true

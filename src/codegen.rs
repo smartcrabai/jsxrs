@@ -9,6 +9,10 @@ use crate::error::JsxrsError;
 use crate::parser;
 
 /// Generate Rust struct definitions from TypeScript interface declarations in TSX files.
+///
+/// # Errors
+///
+/// Returns an error if any source file cannot be read, parsed, or if the output file cannot be written.
 pub fn generate_types(
     tsx_paths: &[impl AsRef<Path>],
     output_path: &Path,
@@ -80,9 +84,9 @@ fn ts_type_to_rust(ts_type: &TsType) -> String {
             TsKeywordTypeKind::TsStringKeyword => "String".to_string(),
             TsKeywordTypeKind::TsNumberKeyword => "f64".to_string(),
             TsKeywordTypeKind::TsBooleanKeyword => "bool".to_string(),
-            TsKeywordTypeKind::TsAnyKeyword => "serde_json::Value".to_string(),
-            TsKeywordTypeKind::TsNullKeyword => "Option<()>".to_string(),
-            TsKeywordTypeKind::TsUndefinedKeyword => "Option<()>".to_string(),
+            TsKeywordTypeKind::TsNullKeyword | TsKeywordTypeKind::TsUndefinedKeyword => {
+                "Option<()>".to_string()
+            }
             _ => "serde_json::Value".to_string(),
         },
         TsType::TsArrayType(arr) => {

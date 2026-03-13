@@ -44,17 +44,22 @@ impl JsxRouter {
         }
     }
 
+    #[must_use]
     pub fn with_config(mut self, config: RenderConfig) -> Self {
         self.config = config;
         self
     }
 
     /// Build an Axum `Router` from the discovered file-system routes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if scanning the app directory for routes fails.
     pub fn into_router(self) -> Result<Router, JsxrsError> {
         let routes = discovery::scan_routes(&self.app_dir).map_err(JsxrsError::Io)?;
 
         let config = Arc::new(self.config);
-        let mut router = Router::new();
+        let mut axum_router = Router::new();
 
         for entry in routes {
             let route_handler = handler::RouteHandler {
@@ -63,22 +68,22 @@ impl JsxRouter {
             };
 
             if entry.axum_path.contains('{') {
-                router = router.route(
+                axum_router = axum_router.route(
                     &entry.axum_path,
                     get(
                         move |path: axum::extract::Path<
                             std::collections::HashMap<String, String>,
-                        >| { handler::handle_dynamic(path, route_handler) },
+                        >| async move { handler::handle_dynamic(path, &route_handler) },
                     ),
                 );
             } else {
-                router = router.route(
+                axum_router = axum_router.route(
                     &entry.axum_path,
-                    get(move || handler::handle_static(route_handler)),
+                    get(move || async move { handler::handle_static(&route_handler) }),
                 );
             }
         }
 
-        Ok(router)
+        Ok(axum_router)
     }
 }

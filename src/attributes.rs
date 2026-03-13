@@ -38,7 +38,7 @@ fn is_event_handler(name: &str) -> bool {
         && name
             .as_bytes()
             .get(2)
-            .is_some_and(|b| b.is_ascii_uppercase())
+            .is_some_and(u8::is_ascii_uppercase)
 }
 
 fn camel_to_kebab(s: &str) -> String {
