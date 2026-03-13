@@ -26,8 +26,8 @@ pub(crate) fn handle_dynamic(
     Path(params): Path<HashMap<String, String>>,
     handler: &RouteHandler,
 ) -> Response {
-    let props = serde_json::to_value(&params)
-        .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
+    let props =
+        serde_json::to_value(&params).unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
     render_route(handler, &props)
 }
 

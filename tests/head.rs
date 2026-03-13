@@ -9,7 +9,8 @@ use common::{
 };
 
 #[test]
-fn should_render_title_in_head_when_jsx_contains_head_component() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_title_in_head_when_jsx_contains_head_component()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return (
@@ -31,7 +32,8 @@ fn should_render_title_in_head_when_jsx_contains_head_component() -> Result<(), 
 }
 
 #[test]
-fn should_render_meta_in_head_when_jsx_contains_head_with_meta() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_meta_in_head_when_jsx_contains_head_with_meta()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r#"export default function Page() {
   return (
@@ -55,7 +57,8 @@ fn should_render_meta_in_head_when_jsx_contains_head_with_meta() -> Result<(), B
 }
 
 #[test]
-fn should_render_link_in_head_when_jsx_contains_head_with_link() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_link_in_head_when_jsx_contains_head_with_link()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r#"export default function Page() {
   return (
@@ -103,7 +106,8 @@ fn should_not_render_head_component_in_body() -> Result<(), Box<dyn std::error::
 }
 
 #[test]
-fn should_override_jsx_title_when_api_title_is_specified() -> Result<(), Box<dyn std::error::Error>> {
+fn should_override_jsx_title_when_api_title_is_specified() -> Result<(), Box<dyn std::error::Error>>
+{
     // Given: JSX has title "JSX Title", API specifies "API Title"
     let source = r"export default function Page() {
   return (
@@ -126,7 +130,8 @@ fn should_override_jsx_title_when_api_title_is_specified() -> Result<(), Box<dyn
 }
 
 #[test]
-fn should_override_jsx_meta_when_api_specifies_same_name_meta() -> Result<(), Box<dyn std::error::Error>> {
+fn should_override_jsx_meta_when_api_specifies_same_name_meta()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given: JSX has description meta, API overrides it
     let source = r#"export default function Page() {
   return (
@@ -154,7 +159,8 @@ fn should_override_jsx_meta_when_api_specifies_same_name_meta() -> Result<(), Bo
 }
 
 #[test]
-fn should_keep_both_link_tags_when_api_and_jsx_specify_links() -> Result<(), Box<dyn std::error::Error>> {
+fn should_keep_both_link_tags_when_api_and_jsx_specify_links()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given: JSX has one link, API specifies another
     let source = r#"export default function Page() {
   return (
@@ -182,7 +188,8 @@ fn should_keep_both_link_tags_when_api_and_jsx_specify_links() -> Result<(), Box
 }
 
 #[test]
-fn should_render_api_head_elements_when_no_head_component_in_jsx() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_api_head_elements_when_no_head_component_in_jsx()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given: no Head in JSX, API specifies head elements
     let source = r"export default function Page() {
   return <div>content</div>;
@@ -223,7 +230,8 @@ fn should_render_head_from_fixture_file() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[test]
-fn should_propagate_child_component_head_to_parent_output() -> Result<(), Box<dyn std::error::Error>> {
+fn should_propagate_child_component_head_to_parent_output() -> Result<(), Box<dyn std::error::Error>>
+{
     // Given: parent and child both have <Head> elements
     let path = fixtures_dir().join("with_child_head.jsx");
     let config = config_with_base_dir(fixtures_dir());

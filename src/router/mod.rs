@@ -73,7 +73,9 @@ impl JsxRouter {
                     get(
                         move |path: axum::extract::Path<
                             std::collections::HashMap<String, String>,
-                        >| async move { handler::handle_dynamic(path, &route_handler) },
+                        >| async move {
+                            handler::handle_dynamic(path, &route_handler)
+                        },
                     ),
                 );
             } else {

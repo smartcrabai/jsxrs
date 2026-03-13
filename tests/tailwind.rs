@@ -6,7 +6,8 @@ use serde_json::json;
 use common::{config_with_tailwind, extract_head, minimal_config};
 
 #[test]
-fn should_generate_tailwind_css_in_head_when_classes_used() -> Result<(), Box<dyn std::error::Error>> {
+fn should_generate_tailwind_css_in_head_when_classes_used() -> Result<(), Box<dyn std::error::Error>>
+{
     // Given
     let source = r#"export default function Page() {
   return <div className="bg-blue-500 text-white p-4">content</div>;
@@ -24,7 +25,8 @@ fn should_generate_tailwind_css_in_head_when_classes_used() -> Result<(), Box<dy
 }
 
 #[test]
-fn should_not_add_style_tag_when_no_tailwind_classes_used() -> Result<(), Box<dyn std::error::Error>> {
+fn should_not_add_style_tag_when_no_tailwind_classes_used() -> Result<(), Box<dyn std::error::Error>>
+{
     // Given
     let source = r"export default function Page() {
   return <div>plain content</div>;

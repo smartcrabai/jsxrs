@@ -40,7 +40,8 @@ fn should_render_nested_elements_when_given_nested_jsx() -> Result<(), Box<dyn s
 }
 
 #[test]
-fn should_render_self_closing_tags_when_given_void_elements() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_self_closing_tags_when_given_void_elements()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <div><br/><hr/></div>;
@@ -57,7 +58,8 @@ fn should_render_self_closing_tags_when_given_void_elements() -> Result<(), Box<
 }
 
 #[test]
-fn should_render_img_with_attributes_when_given_self_closing_element() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_img_with_attributes_when_given_self_closing_element()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r#"export default function Page() {
   return <img src="test.png" alt="test" />;
@@ -74,7 +76,8 @@ fn should_render_img_with_attributes_when_given_self_closing_element() -> Result
 }
 
 #[test]
-fn should_render_fragment_children_when_given_jsx_fragment() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_fragment_children_when_given_jsx_fragment()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <><div>first</div><span>second</span></>;
@@ -91,7 +94,8 @@ fn should_render_fragment_children_when_given_jsx_fragment() -> Result<(), Box<d
 }
 
 #[test]
-fn should_render_mixed_text_and_elements_when_given_interleaved_content() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_mixed_text_and_elements_when_given_interleaved_content()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <div>Hello <strong>World</strong>!</div>;
@@ -108,7 +112,8 @@ fn should_render_mixed_text_and_elements_when_given_interleaved_content() -> Res
 }
 
 #[test]
-fn should_render_deeply_nested_elements_when_given_multiple_nesting_levels() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_deeply_nested_elements_when_given_multiple_nesting_levels()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <div><section><article><p>deep</p></article></section></div>;
@@ -128,7 +133,8 @@ fn should_render_deeply_nested_elements_when_given_multiple_nesting_levels() -> 
 }
 
 #[test]
-fn should_render_multiple_children_when_given_sibling_elements() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_multiple_children_when_given_sibling_elements()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return (
@@ -151,7 +157,8 @@ fn should_render_multiple_children_when_given_sibling_elements() -> Result<(), B
 }
 
 #[test]
-fn should_render_props_in_text_when_given_jsx_expression_with_props() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_props_in_text_when_given_jsx_expression_with_props()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Greeting(props) {
   return <div>Hello, {props.name}!</div>;
@@ -207,7 +214,8 @@ export default Page;";
 }
 
 #[test]
-fn should_render_number_prop_as_text_when_given_numeric_expression() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_number_prop_as_text_when_given_numeric_expression()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page(props) {
   return <span>{props.count}</span>;

@@ -32,7 +32,8 @@ fn should_generate_rust_struct_from_tsx_interface() -> Result<(), Box<dyn std::e
 }
 
 #[test]
-fn should_generate_rust_struct_with_correct_field_types() -> Result<(), Box<dyn std::error::Error>> {
+fn should_generate_rust_struct_with_correct_field_types() -> Result<(), Box<dyn std::error::Error>>
+{
     // Given: typed_interface.tsx has string, number, boolean, string[]
     let tsx_path = fixtures_dir().join("typed_interface.tsx");
     let output_dir = std::env::temp_dir().join("jsxrs_test_codegen_types");

@@ -6,7 +6,8 @@ use serde_json::json;
 use common::{extract_body, minimal_config};
 
 #[test]
-fn should_convert_classname_to_class_when_given_classname_attribute() -> Result<(), Box<dyn std::error::Error>> {
+fn should_convert_classname_to_class_when_given_classname_attribute()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r#"export default function Page() {
   return <div className="container">content</div>;
@@ -23,7 +24,8 @@ fn should_convert_classname_to_class_when_given_classname_attribute() -> Result<
 }
 
 #[test]
-fn should_convert_htmlfor_to_for_when_given_htmlfor_attribute() -> Result<(), Box<dyn std::error::Error>> {
+fn should_convert_htmlfor_to_for_when_given_htmlfor_attribute()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r#"export default function Page() {
   return <label htmlFor="email">Email</label>;
@@ -40,7 +42,8 @@ fn should_convert_htmlfor_to_for_when_given_htmlfor_attribute() -> Result<(), Bo
 }
 
 #[test]
-fn should_convert_style_object_to_css_string_when_given_camelcase_styles() -> Result<(), Box<dyn std::error::Error>> {
+fn should_convert_style_object_to_css_string_when_given_camelcase_styles()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <div style={{color: 'red', fontSize: '14px', backgroundColor: 'blue'}}>styled</div>;
@@ -60,7 +63,8 @@ fn should_convert_style_object_to_css_string_when_given_camelcase_styles() -> Re
 }
 
 #[test]
-fn should_render_boolean_attribute_name_only_when_value_is_true() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_boolean_attribute_name_only_when_value_is_true()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <input disabled={true} />;
@@ -94,7 +98,8 @@ fn should_omit_boolean_attribute_when_value_is_false() -> Result<(), Box<dyn std
 }
 
 #[test]
-fn should_exclude_event_handler_attributes_from_html_output() -> Result<(), Box<dyn std::error::Error>> {
+fn should_exclude_event_handler_attributes_from_html_output()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <button onClick={handler} onMouseOver={handler}>click</button>;
@@ -149,7 +154,8 @@ fn should_pass_through_data_attributes() -> Result<(), Box<dyn std::error::Error
 }
 
 #[test]
-fn should_convert_tabindex_to_lowercase_when_given_camelcase() -> Result<(), Box<dyn std::error::Error>> {
+fn should_convert_tabindex_to_lowercase_when_given_camelcase()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <div tabIndex={0}>focusable</div>;
@@ -166,7 +172,8 @@ fn should_convert_tabindex_to_lowercase_when_given_camelcase() -> Result<(), Box
 }
 
 #[test]
-fn should_render_shorthand_boolean_attribute_when_no_value_specified() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_shorthand_boolean_attribute_when_no_value_specified()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <input required />;

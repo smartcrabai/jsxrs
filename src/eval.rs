@@ -122,8 +122,7 @@ pub fn eval_expr(expr: &Expr, ctx: &EvalContext) -> Result<Value, JsxrsError> {
 fn eval_lit(lit: &Lit) -> Result<Value, JsxrsError> {
     match lit {
         Lit::Str(s) => Ok(Value::String(s.value.to_string_lossy().into_owned())),
-        Lit::Num(n) => Ok(serde_json::Number::from_f64(n.value)
-            .map_or(Value::Null, Value::Number)),
+        Lit::Num(n) => Ok(serde_json::Number::from_f64(n.value).map_or(Value::Null, Value::Number)),
         Lit::Bool(b) => Ok(Value::Bool(b.value)),
         Lit::Null(_) => Ok(Value::Null),
         _ => Err(JsxrsError::Unsupported("literal type".into())),
@@ -148,7 +147,9 @@ fn eval_member(member: &MemberExpr, ctx: &EvalContext) -> Result<Value, JsxrsErr
             let val = eval_expr(&c.expr, ctx)?;
             value_to_string(&val)
         }
-        MemberProp::PrivateName(_) => return Err(JsxrsError::Unsupported("member property type".into())),
+        MemberProp::PrivateName(_) => {
+            return Err(JsxrsError::Unsupported("member property type".into()));
+        }
     };
     access_value(&obj, &key)
 }
@@ -240,8 +241,7 @@ fn eval_add(left: &Expr, right: &Expr, ctx: &EvalContext) -> Result<Value, Jsxrs
     }
     let ln = to_numeric(&l);
     let rn = to_numeric(&r);
-    Ok(serde_json::Number::from_f64(ln + rn)
-        .map_or(Value::Null, Value::Number))
+    Ok(serde_json::Number::from_f64(ln + rn).map_or(Value::Null, Value::Number))
 }
 
 fn eval_cond(cond: &swc_ecma_ast::CondExpr, ctx: &EvalContext) -> Result<Value, JsxrsError> {
@@ -262,14 +262,12 @@ fn eval_unary(unary: &swc_ecma_ast::UnaryExpr, ctx: &EvalContext) -> Result<Valu
         swc_ecma_ast::UnaryOp::Minus => {
             let val = eval_expr(&unary.arg, ctx)?;
             let n = to_numeric(&val);
-            Ok(serde_json::Number::from_f64(-n)
-                .map_or(Value::Null, Value::Number))
+            Ok(serde_json::Number::from_f64(-n).map_or(Value::Null, Value::Number))
         }
         swc_ecma_ast::UnaryOp::Plus => {
             let val = eval_expr(&unary.arg, ctx)?;
             let n = to_numeric(&val);
-            Ok(serde_json::Number::from_f64(n)
-                .map_or(Value::Null, Value::Number))
+            Ok(serde_json::Number::from_f64(n).map_or(Value::Null, Value::Number))
         }
         _ => Err(JsxrsError::Unsupported(format!(
             "unary operator: {:?}",

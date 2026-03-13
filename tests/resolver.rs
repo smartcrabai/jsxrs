@@ -6,7 +6,8 @@ use serde_json::json;
 use common::{config_with_base_dir, extract_body, fixtures_dir, minimal_config};
 
 #[test]
-fn should_resolve_imported_component_when_given_relative_import() -> Result<(), Box<dyn std::error::Error>> {
+fn should_resolve_imported_component_when_given_relative_import()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given: with_import.jsx imports ./components/button
     let path = fixtures_dir().join("with_import.jsx");
     let config = config_with_base_dir(fixtures_dir());

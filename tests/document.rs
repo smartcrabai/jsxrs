@@ -6,7 +6,8 @@ use serde_json::json;
 use common::{fragment_config, minimal_config, pretty_config};
 
 #[test]
-fn should_produce_complete_html_document_when_rendering_jsx() -> Result<(), Box<dyn std::error::Error>> {
+fn should_produce_complete_html_document_when_rendering_jsx()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <div>Hello</div>;
@@ -29,7 +30,8 @@ fn should_produce_complete_html_document_when_rendering_jsx() -> Result<(), Box<
 }
 
 #[test]
-fn should_not_contain_extra_whitespace_when_pretty_is_false() -> Result<(), Box<dyn std::error::Error>> {
+fn should_not_contain_extra_whitespace_when_pretty_is_false()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <div>Hello</div>;
@@ -69,7 +71,8 @@ fn should_contain_indentation_when_pretty_is_true() -> Result<(), Box<dyn std::e
 }
 
 #[test]
-fn should_include_empty_head_when_no_head_elements_specified() -> Result<(), Box<dyn std::error::Error>> {
+fn should_include_empty_head_when_no_head_elements_specified()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page() {
   return <div>content</div>;
@@ -100,7 +103,8 @@ fn should_render_file_when_given_file_path() -> Result<(), Box<dyn std::error::E
 }
 
 #[test]
-fn should_render_file_with_props_when_given_file_path_and_props() -> Result<(), Box<dyn std::error::Error>> {
+fn should_render_file_with_props_when_given_file_path_and_props()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let path = common::fixtures_dir().join("with_props.jsx");
     let config = minimal_config();
@@ -135,7 +139,8 @@ fn should_return_body_html_only_when_fragment_is_true() -> Result<(), Box<dyn st
 }
 
 #[test]
-fn should_not_include_head_content_when_fragment_is_true() -> Result<(), Box<dyn std::error::Error>> {
+fn should_not_include_head_content_when_fragment_is_true() -> Result<(), Box<dyn std::error::Error>>
+{
     // Given
     let source = r"export default function Page() {
   return (
@@ -157,7 +162,8 @@ fn should_not_include_head_content_when_fragment_is_true() -> Result<(), Box<dyn
 }
 
 #[test]
-fn should_not_include_tailwind_style_when_fragment_is_true() -> Result<(), Box<dyn std::error::Error>> {
+fn should_not_include_tailwind_style_when_fragment_is_true()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r#"export default function Page() {
   return <div class="flex">Hello</div>;

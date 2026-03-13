@@ -6,7 +6,8 @@ use serde_json::json;
 use common::minimal_config;
 
 #[test]
-fn should_return_parse_error_when_given_invalid_jsx_syntax() -> Result<(), Box<dyn std::error::Error>> {
+fn should_return_parse_error_when_given_invalid_jsx_syntax()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given: unclosed tag
     let source = r"export default function Page() {
   return <div><span></div>;
@@ -17,7 +18,10 @@ fn should_return_parse_error_when_given_invalid_jsx_syntax() -> Result<(), Box<d
 
     // Then
     assert!(result.is_err());
-    assert!(matches!(result.err().ok_or("expected Err but got Ok")?, JsxrsError::Parse(_)));
+    assert!(matches!(
+        result.err().ok_or("expected Err but got Ok")?,
+        JsxrsError::Parse(_)
+    ));
     Ok(())
 }
 
@@ -93,7 +97,8 @@ export default function Page() {
 }
 
 #[test]
-fn should_return_parse_error_when_given_invalid_tsx_syntax() -> Result<(), Box<dyn std::error::Error>> {
+fn should_return_parse_error_when_given_invalid_tsx_syntax()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given: invalid TSX
     let source = r"
 interface Props {
@@ -108,7 +113,10 @@ export default function Page(props: Props) {
 
     // Then
     assert!(result.is_err());
-    assert!(matches!(result.err().ok_or("expected Err but got Ok")?, JsxrsError::Parse(_)));
+    assert!(matches!(
+        result.err().ok_or("expected Err but got Ok")?,
+        JsxrsError::Parse(_)
+    ));
     Ok(())
 }
 

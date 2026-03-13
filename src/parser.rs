@@ -1,7 +1,7 @@
 use bytes_str::BytesStr;
 use swc_common::{FileName, SourceMap, sync::Lrc};
-use swc_ecma_ast::Module;
 use swc_ecma_ast::EsVersion;
+use swc_ecma_ast::Module;
 use swc_ecma_parser::{EsSyntax, Parser, StringInput, Syntax, TsSyntax, lexer::Lexer};
 
 use crate::error::JsxrsError;

@@ -54,7 +54,10 @@ fn should_access_object_properties_in_map_callback() -> Result<(), Box<dyn std::
     let result = render_string(source, "p.jsx", &props, &minimal_config())?;
 
     // Then
-    assert_eq!(extract_body(&result).ok_or("missing body")?, "<ul><li>Alice</li><li>Bob</li></ul>");
+    assert_eq!(
+        extract_body(&result).ok_or("missing body")?,
+        "<ul><li>Alice</li><li>Bob</li></ul>"
+    );
     Ok(())
 }
 
@@ -72,7 +75,10 @@ fn should_evaluate_equality_comparison_in_ternary() -> Result<(), Box<dyn std::e
     let result = render_string(source, "p.jsx", &props, &minimal_config())?;
 
     // Then
-    assert_eq!(extract_body(&result).ok_or("missing body")?, "<span>yes</span>");
+    assert_eq!(
+        extract_body(&result).ok_or("missing body")?,
+        "<span>yes</span>"
+    );
     Ok(())
 }
 
@@ -88,7 +94,10 @@ fn should_evaluate_numeric_comparison_in_ternary() -> Result<(), Box<dyn std::er
     let result = render_string(source, "p.jsx", &props, &minimal_config())?;
 
     // Then
-    assert_eq!(extract_body(&result).ok_or("missing body")?, "<span>has items</span>");
+    assert_eq!(
+        extract_body(&result).ok_or("missing body")?,
+        "<span>has items</span>"
+    );
     Ok(())
 }
 
@@ -106,7 +115,10 @@ fn should_concatenate_strings_with_plus_operator() -> Result<(), Box<dyn std::er
     let result = render_string(source, "p.jsx", &props, &minimal_config())?;
 
     // Then
-    assert_eq!(extract_body(&result).ok_or("missing body")?, "<span>Jane Doe</span>");
+    assert_eq!(
+        extract_body(&result).ok_or("missing body")?,
+        "<span>Jane Doe</span>"
+    );
     Ok(())
 }
 
@@ -172,6 +184,9 @@ fn should_treat_nonzero_number_as_truthy() -> Result<(), Box<dyn std::error::Err
     let result = render_string(source, "p.jsx", &props, &minimal_config())?;
 
     // Then
-    assert_eq!(extract_body(&result).ok_or("missing body")?, "<div><span>truthy</span></div>");
+    assert_eq!(
+        extract_body(&result).ok_or("missing body")?,
+        "<div><span>truthy</span></div>"
+    );
     Ok(())
 }
