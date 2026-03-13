@@ -68,9 +68,8 @@ fn render_map(
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
-    let items = match arr {
-        Value::Array(a) => a,
-        _ => return Err(JsxrsError::Unsupported("map() on non-array".into())),
+    let Value::Array(items) = arr else {
+        return Err(JsxrsError::Unsupported("map() on non-array".into()));
     };
     let mut out = String::new();
     for item in items {
@@ -127,7 +126,7 @@ fn extract_arrow_callback(expr: &Expr) -> Result<(String, Expr), JsxrsError> {
             };
             let body = match arrow.body.as_ref() {
                 swc_ecma_ast::BlockStmtOrExpr::Expr(e) => *e.clone(),
-                _ => {
+                swc_ecma_ast::BlockStmtOrExpr::BlockStmt(_) => {
                     return Err(JsxrsError::Unsupported(
                         "only expression bodies in map callbacks".into(),
                     ));

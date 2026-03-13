@@ -18,16 +18,17 @@ pub(crate) struct RouteHandler {
     pub config: Arc<RenderConfig>,
 }
 
-pub(crate) async fn handle_static(handler: RouteHandler) -> Response {
-    render_route(&handler, &Value::Object(serde_json::Map::new()))
+pub(crate) fn handle_static(handler: &RouteHandler) -> Response {
+    render_route(handler, &Value::Object(serde_json::Map::new()))
 }
 
-pub(crate) async fn handle_dynamic(
+pub(crate) fn handle_dynamic(
     Path(params): Path<HashMap<String, String>>,
-    handler: RouteHandler,
+    handler: &RouteHandler,
 ) -> Response {
-    let props = serde_json::to_value(&params).unwrap_or(Value::Object(serde_json::Map::new()));
-    render_route(&handler, &props)
+    let props =
+        serde_json::to_value(&params).unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
+    render_route(handler, &props)
 }
 
 fn render_route(handler: &RouteHandler, props: &Value) -> Response {

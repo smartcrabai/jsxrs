@@ -149,7 +149,7 @@ fn build_component_props(
         };
         let name = match &a.name {
             swc_ecma_ast::JSXAttrName::Ident(id) => id.sym.to_string(),
-            _ => continue,
+            swc_ecma_ast::JSXAttrName::JSXNamespacedName(_) => continue,
         };
         let value = match &a.value {
             None => Value::Bool(true),
@@ -199,7 +199,9 @@ fn render_html_tag(
     for child in &el.children {
         out.push_str(&render_child(child, ctx, config, imports, state)?);
     }
-    out.push_str(&format!("</{tag}>"));
+    out.push_str("</");
+    out.push_str(tag);
+    out.push('>');
     Ok(out)
 }
 

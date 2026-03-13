@@ -6,15 +6,16 @@ use serde_json::json;
 use common::{fragment_config, minimal_config, pretty_config};
 
 #[test]
-fn should_produce_complete_html_document_when_rendering_jsx() {
+fn should_produce_complete_html_document_when_rendering_jsx()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
-    let source = r#"export default function Page() {
+    let source = r"export default function Page() {
   return <div>Hello</div>;
-}"#;
+}";
     let config = minimal_config();
 
     // When
-    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+    let result = render_string(source, "page.jsx", &json!({}), &config)?;
 
     // Then
     assert!(result.starts_with("<!DOCTYPE html>"));
@@ -25,36 +26,39 @@ fn should_produce_complete_html_document_when_rendering_jsx() {
     assert!(result.contains("<div>Hello</div>"));
     assert!(result.contains("</body>"));
     assert!(result.contains("</html>"));
+    Ok(())
 }
 
 #[test]
-fn should_not_contain_extra_whitespace_when_pretty_is_false() {
+fn should_not_contain_extra_whitespace_when_pretty_is_false()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
-    let source = r#"export default function Page() {
+    let source = r"export default function Page() {
   return <div>Hello</div>;
-}"#;
+}";
     let config = minimal_config();
 
     // When
-    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+    let result = render_string(source, "page.jsx", &json!({}), &config)?;
 
     // Then
     assert_eq!(
         result,
         "<!DOCTYPE html><html><head></head><body><div>Hello</div></body></html>"
     );
+    Ok(())
 }
 
 #[test]
-fn should_contain_indentation_when_pretty_is_true() {
+fn should_contain_indentation_when_pretty_is_true() -> Result<(), Box<dyn std::error::Error>> {
     // Given
-    let source = r#"export default function Page() {
+    let source = r"export default function Page() {
   return <div>Hello</div>;
-}"#;
+}";
     let config = pretty_config();
 
     // When
-    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+    let result = render_string(source, "page.jsx", &json!({}), &config)?;
 
     // Then
     assert!(result.starts_with("<!DOCTYPE html>"));
@@ -63,61 +67,67 @@ fn should_contain_indentation_when_pretty_is_true() {
     assert!(result.contains("  <head>")); // indented
     assert!(result.contains("  <body>")); // indented
     assert!(result.contains("<div>Hello</div>"));
+    Ok(())
 }
 
 #[test]
-fn should_include_empty_head_when_no_head_elements_specified() {
+fn should_include_empty_head_when_no_head_elements_specified()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
-    let source = r#"export default function Page() {
+    let source = r"export default function Page() {
   return <div>content</div>;
-}"#;
+}";
     let config = minimal_config();
 
     // When
-    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+    let result = render_string(source, "page.jsx", &json!({}), &config)?;
 
     // Then
     assert!(result.contains("<head></head>"));
+    Ok(())
 }
 
 #[test]
-fn should_render_file_when_given_file_path() {
+fn should_render_file_when_given_file_path() -> Result<(), Box<dyn std::error::Error>> {
     // Given
     let path = common::fixtures_dir().join("simple.jsx");
     let config = minimal_config();
 
     // When
-    let result = jsxrs::render_file(&path, &json!({}), &config).unwrap();
+    let result = jsxrs::render_file(&path, &json!({}), &config)?;
 
     // Then
     assert!(result.starts_with("<!DOCTYPE html>"));
     assert!(result.contains("<div>Hello</div>"));
+    Ok(())
 }
 
 #[test]
-fn should_render_file_with_props_when_given_file_path_and_props() {
+fn should_render_file_with_props_when_given_file_path_and_props()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let path = common::fixtures_dir().join("with_props.jsx");
     let config = minimal_config();
     let props = json!({"name": "World"});
 
     // When
-    let result = jsxrs::render_file(&path, &props, &config).unwrap();
+    let result = jsxrs::render_file(&path, &props, &config)?;
 
     // Then
     assert!(result.contains("<div>Hello, World!</div>"));
+    Ok(())
 }
 
 #[test]
-fn should_return_body_html_only_when_fragment_is_true() {
+fn should_return_body_html_only_when_fragment_is_true() -> Result<(), Box<dyn std::error::Error>> {
     // Given
-    let source = r#"export default function Page() {
+    let source = r"export default function Page() {
   return <div>Hello</div>;
-}"#;
+}";
     let config = fragment_config();
 
     // When
-    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+    let result = render_string(source, "page.jsx", &json!({}), &config)?;
 
     // Then
     assert!(!result.contains("<!DOCTYPE html>"));
@@ -125,31 +135,35 @@ fn should_return_body_html_only_when_fragment_is_true() {
     assert!(!result.contains("<head>"));
     assert!(!result.contains("<body>"));
     assert_eq!(result, "<div>Hello</div>");
+    Ok(())
 }
 
 #[test]
-fn should_not_include_head_content_when_fragment_is_true() {
+fn should_not_include_head_content_when_fragment_is_true() -> Result<(), Box<dyn std::error::Error>>
+{
     // Given
-    let source = r#"export default function Page() {
+    let source = r"export default function Page() {
   return (
     <>
       <Head><title>My Page</title></Head>
       <div>content</div>
     </>
   );
-}"#;
+}";
     let config = fragment_config();
 
     // When
-    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+    let result = render_string(source, "page.jsx", &json!({}), &config)?;
 
     // Then
     assert!(!result.contains("<title>"));
     assert!(result.contains("<div>content</div>"));
+    Ok(())
 }
 
 #[test]
-fn should_not_include_tailwind_style_when_fragment_is_true() {
+fn should_not_include_tailwind_style_when_fragment_is_true()
+-> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r#"export default function Page() {
   return <div class="flex">Hello</div>;
@@ -161,9 +175,10 @@ fn should_not_include_tailwind_style_when_fragment_is_true() {
     };
 
     // When
-    let result = render_string(source, "page.jsx", &json!({}), &config).unwrap();
+    let result = render_string(source, "page.jsx", &json!({}), &config)?;
 
     // Then
     assert!(!result.contains("<style>"));
     assert!(result.contains(r#"<div class="flex">Hello</div>"#));
+    Ok(())
 }

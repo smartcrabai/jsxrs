@@ -25,6 +25,10 @@ use std::path::Path;
 use serde_json::Value;
 
 /// Render a JSX/TSX source string to a complete HTML document.
+///
+/// # Errors
+///
+/// Returns an error if the source cannot be parsed or if rendering fails.
 pub fn render_string(
     source: &str,
     file_name: &str,
@@ -53,6 +57,10 @@ pub fn render_string(
 }
 
 /// Render a JSX/TSX file to a complete HTML document.
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be read, parsed, or if rendering fails.
 pub fn render_file(
     path: &Path,
     props: &Value,

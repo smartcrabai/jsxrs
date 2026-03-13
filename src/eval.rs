@@ -60,8 +60,7 @@ pub fn value_to_string(val: &Value) -> String {
         Value::String(s) => s.clone(),
         Value::Number(n) => format_number(n.as_f64().unwrap_or(f64::NAN)),
         Value::Bool(b) => b.to_string(),
-        Value::Null => String::new(),
-        Value::Array(_) | Value::Object(_) => String::new(),
+        Value::Null | Value::Array(_) | Value::Object(_) => String::new(),
     }
 }
 
@@ -69,11 +68,15 @@ fn format_number(f: f64) -> String {
     if f.is_nan() {
         return "NaN".to_string();
     }
-    if f == f.trunc() && f.abs() < i64::MAX as f64 {
-        format!("{}", f as i64)
-    } else {
-        format!("{f}")
+    // 9_007_199_254_740_992.0 == 2^53, the max integer exactly representable as f64.
+    // Within this range, fract() == 0.0 guarantees the value is an exact safe integer.
+    if f.fract() == 0.0 && f.abs() < 9_007_199_254_740_992.0 {
+        // Format as float with no decimal point then strip trailing ".0" suffix
+        // so that e.g. 42.0 becomes "42" rather than "42.0".
+        let s = format!("{f:.0}");
+        return s;
     }
+    format!("{f}")
 }
 
 /// JS `ToNumber` coercion: `true`→1, `false`→0, `null`→0, string→parse or NaN.
@@ -119,9 +122,7 @@ pub fn eval_expr(expr: &Expr, ctx: &EvalContext) -> Result<Value, JsxrsError> {
 fn eval_lit(lit: &Lit) -> Result<Value, JsxrsError> {
     match lit {
         Lit::Str(s) => Ok(Value::String(s.value.to_string_lossy().into_owned())),
-        Lit::Num(n) => Ok(serde_json::Number::from_f64(n.value)
-            .map(Value::Number)
-            .unwrap_or(Value::Null)),
+        Lit::Num(n) => Ok(serde_json::Number::from_f64(n.value).map_or(Value::Null, Value::Number)),
         Lit::Bool(b) => Ok(Value::Bool(b.value)),
         Lit::Null(_) => Ok(Value::Null),
         _ => Err(JsxrsError::Unsupported("literal type".into())),
@@ -146,7 +147,9 @@ fn eval_member(member: &MemberExpr, ctx: &EvalContext) -> Result<Value, JsxrsErr
             let val = eval_expr(&c.expr, ctx)?;
             value_to_string(&val)
         }
-        _ => return Err(JsxrsError::Unsupported("member property type".into())),
+        MemberProp::PrivateName(_) => {
+            return Err(JsxrsError::Unsupported("member property type".into()));
+        }
     };
     access_value(&obj, &key)
 }
@@ -238,9 +241,7 @@ fn eval_add(left: &Expr, right: &Expr, ctx: &EvalContext) -> Result<Value, Jsxrs
     }
     let ln = to_numeric(&l);
     let rn = to_numeric(&r);
-    Ok(serde_json::Number::from_f64(ln + rn)
-        .map(Value::Number)
-        .unwrap_or(Value::Null))
+    Ok(serde_json::Number::from_f64(ln + rn).map_or(Value::Null, Value::Number))
 }
 
 fn eval_cond(cond: &swc_ecma_ast::CondExpr, ctx: &EvalContext) -> Result<Value, JsxrsError> {
@@ -261,16 +262,12 @@ fn eval_unary(unary: &swc_ecma_ast::UnaryExpr, ctx: &EvalContext) -> Result<Valu
         swc_ecma_ast::UnaryOp::Minus => {
             let val = eval_expr(&unary.arg, ctx)?;
             let n = to_numeric(&val);
-            Ok(serde_json::Number::from_f64(-n)
-                .map(Value::Number)
-                .unwrap_or(Value::Null))
+            Ok(serde_json::Number::from_f64(-n).map_or(Value::Null, Value::Number))
         }
         swc_ecma_ast::UnaryOp::Plus => {
             let val = eval_expr(&unary.arg, ctx)?;
             let n = to_numeric(&val);
-            Ok(serde_json::Number::from_f64(n)
-                .map(Value::Number)
-                .unwrap_or(Value::Null))
+            Ok(serde_json::Number::from_f64(n).map_or(Value::Null, Value::Number))
         }
         _ => Err(JsxrsError::Unsupported(format!(
             "unary operator: {:?}",

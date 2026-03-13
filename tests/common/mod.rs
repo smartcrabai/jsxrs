@@ -50,15 +50,19 @@ pub fn fragment_config() -> RenderConfig {
 }
 
 /// Extracts the content inside <body>...</body> from full HTML document output.
-pub fn extract_body(html: &str) -> &str {
-    let start = html.find("<body>").expect("missing <body>") + "<body>".len();
-    let end = html.find("</body>").expect("missing </body>");
-    &html[start..end]
+///
+/// Returns `None` if the body tags are not found.
+pub fn extract_body(html: &str) -> Option<&str> {
+    let start = html.find("<body>")? + "<body>".len();
+    let end = html.find("</body>")?;
+    Some(&html[start..end])
 }
 
 /// Extracts the content inside <head>...</head> from full HTML document output.
-pub fn extract_head(html: &str) -> &str {
-    let start = html.find("<head>").expect("missing <head>") + "<head>".len();
-    let end = html.find("</head>").expect("missing </head>");
-    &html[start..end]
+///
+/// Returns `None` if the head tags are not found.
+pub fn extract_head(html: &str) -> Option<&str> {
+    let start = html.find("<head>")? + "<head>".len();
+    let end = html.find("</head>")?;
+    Some(&html[start..end])
 }
