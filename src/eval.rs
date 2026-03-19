@@ -79,7 +79,7 @@ fn format_number(f: f64) -> String {
     format!("{f}")
 }
 
-/// JS `ToNumber` coercion: `true`→1, `false`→0, `null`→0, string→parse or NaN.
+/// JS `ToNumber` coercion: `true`->1, `false`->0, `null`->0, string->parse or NaN.
 fn to_numeric(val: &Value) -> f64 {
     match val {
         Value::Number(n) => n.as_f64().unwrap_or(f64::NAN),
