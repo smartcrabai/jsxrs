@@ -57,7 +57,7 @@ fn collect_routes(
     // Recurse into subdirectories
     let mut subdirs: Vec<_> = std::fs::read_dir(current_dir)?
         .filter_map(std::result::Result::ok)
-        .filter(|e| e.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
+        .filter(|e| e.file_type().is_ok_and(|ft| ft.is_dir()))
         .collect();
     subdirs.sort_by_key(std::fs::DirEntry::file_name);
 
