@@ -3,7 +3,7 @@ description = "A Rust library for rendering JSX/TSX to complete HTML documents a
 edition = "2024"
 license = "Apache-2.0"
 name = "jsxrs"
-version = "0.1.4"
+version = "0.1.5"
 
 [features]
 axum = ["dep:axum", "dep:tokio"]
