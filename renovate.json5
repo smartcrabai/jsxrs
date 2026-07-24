@@ -3,9 +3,9 @@
     "config:best-practices"
   ],
   dependencyDashboard: false,
-  // 中央の source ファイルを terraforms リポジトリでのみ Renovate の
-  // スキャン対象にする（additive のためデフォルトパターンは維持される。
-  // このパスは配布先リポジトリには存在しない）。
+  // Scan the central source file for Renovate only in the terraforms repository
+  // (additive, so the default patterns are still kept; this path does not
+  // exist in the distribution target repositories).
   "github-actions": {
     managerFilePatterns: [
       "/(^|/)environments/shared/cruise/workflow(-private)?\\.yml$/"
@@ -41,9 +41,9 @@
       minimumReleaseAge: "7 days"
     },
     {
-      // Terraform から配布されるファイルは各リポジトリ側で更新させない
-      // （source of truth との綱引きを防ぐ）。ignorePaths は non-mergeable で
-      // プリセットの除外を上書きしてしまうため、packageRules で無効化する。
+      // Do not let files distributed by Terraform be updated on the repository side
+      // (to avoid fighting over the source of truth). ignorePaths is non-mergeable
+      // and would override the preset's exclusions, so disable via packageRules instead.
       matchFileNames: [
         ".github/workflows/cruise.yml",
         ".woodpecker/cruise.yaml",
