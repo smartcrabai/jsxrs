@@ -227,7 +227,10 @@ fn render_child(
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
     match child {
-        JSXElementChild::JSXText(t) => Ok(escape::escape_html(&normalize_jsx_text(&t.value))),
+        JSXElementChild::JSXText(t) => {
+            let text = t.value.to_string_lossy();
+            Ok(escape::escape_html(&normalize_jsx_text(&text)))
+        }
         JSXElementChild::JSXElement(el) => render_element(el, ctx, config, imports, state),
         JSXElementChild::JSXFragment(f) => render_fragment(f, ctx, config, imports, state),
         JSXElementChild::JSXExprContainer(c) => {

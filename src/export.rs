@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use swc_ecma_ast::{
-    BlockStmtOrExpr, Decl, DefaultDecl, Expr, FnDecl, FnExpr, Function, ImportDecl,
+    ArrowFunctionBody, Decl, DefaultDecl, Expr, FnDecl, FnExpr, Function, ImportDecl,
     ImportSpecifier, ModuleDecl, ModuleItem, Pat, ReturnStmt, Stmt, VarDeclarator,
 };
 
@@ -97,8 +97,8 @@ fn resolve_default_expr(
 fn resolve_arrow_or_fn(expr: &Expr) -> Result<Expr, JsxrsError> {
     match expr {
         Expr::Arrow(a) => match a.body.as_ref() {
-            BlockStmtOrExpr::Expr(e) => Ok(*e.clone()),
-            BlockStmtOrExpr::BlockStmt(b) => find_return_expr(&b.stmts),
+            ArrowFunctionBody::Expr(e) => Ok(*e.clone()),
+            ArrowFunctionBody::FunctionBody(b) => find_return_expr(&b.stmts),
         },
         Expr::Fn(FnExpr { function, .. }) => extract_return_from_function(function),
         _ => Err(JsxrsError::NoDefaultExport),
