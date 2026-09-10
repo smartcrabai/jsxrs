@@ -12,7 +12,7 @@ default = []
 [dependencies]
 axum = { version = "0.8", optional = true }
 bytes-str = "0.2.7"
-encre-css = "0.20.1"
+encre-css = "0.21.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 swc_common = "24.0.0"
@@ -23,8 +23,8 @@ tokio = { version = "1", features = ["rt"], optional = true }
 
 [dev-dependencies]
 axum = "=0.8.9"
-axum-test = "=21.0.0"
-tokio = { version = "=1.52.3", features = ["full"] }
+axum-test = "=21.1.0"
+tokio = { version = "=1.53.1", features = ["full"] }
 
 
 [lints.clippy]
