@@ -125,8 +125,8 @@ fn extract_arrow_callback(expr: &Expr) -> Result<(String, Expr), JsxrsError> {
                 }
             };
             let body = match arrow.body.as_ref() {
-                swc_ecma_ast::BlockStmtOrExpr::Expr(e) => *e.clone(),
-                swc_ecma_ast::BlockStmtOrExpr::BlockStmt(_) => {
+                swc_ecma_ast::ArrowFunctionBody::Expr(e) => *e.clone(),
+                swc_ecma_ast::ArrowFunctionBody::FunctionBody(_) => {
                     return Err(JsxrsError::Unsupported(
                         "only expression bodies in map callbacks".into(),
                     ));
