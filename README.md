@@ -349,3 +349,7 @@ Elements that can be added to the document head:
 
 jsxrs automatically escapes HTML content to prevent XSS attacks. User-supplied content in text nodes and attributes is properly escaped.
 
+## Support
+
+If you find jsxrs useful, consider [sponsoring smartcrabai](https://github.com/sponsors/smartcrabai)
+to support its development and maintenance.
