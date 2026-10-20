@@ -6,7 +6,7 @@ use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use serde_json::Value;
 
-use crate::config::RenderConfig;
+use crate::config::{CheckedRenderContext, RenderConfig};
 
 use super::discovery::RouteEntry;
 use super::layout::render_with_layouts;
@@ -16,6 +16,7 @@ use super::layout::render_with_layouts;
 pub(crate) struct RouteHandler {
     pub entry: Arc<RouteEntry>,
     pub config: Arc<RenderConfig>,
+    pub checked_context: Arc<CheckedRenderContext>,
 }
 
 pub(crate) fn handle_static(handler: &RouteHandler) -> Response {
@@ -37,6 +38,7 @@ fn render_route(handler: &RouteHandler, props: &Value) -> Response {
         &handler.entry.layouts,
         props,
         &handler.config,
+        &handler.checked_context,
     ) {
         Ok(html) => Html(html).into_response(),
         Err(e) => (

@@ -1,6 +1,8 @@
 mod common;
 
-use jsxrs::{render_file, render_string};
+use std::fs;
+
+use jsxrs::{RenderConfig, render_file, render_string};
 use serde_json::json;
 
 use common::{config_with_base_dir, extract_body, fixtures_dir, minimal_config};
@@ -98,4 +100,45 @@ export default function Page() {
 
     // Then
     assert!(result.is_err());
+}
+
+#[test]
+fn should_resolve_nested_imports_relative_to_the_importing_file()
+-> Result<(), Box<dyn std::error::Error>> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!(
+        "jsxrs_nested_import_{}_{}",
+        std::process::id(),
+        nanos
+    ));
+    fs::create_dir_all(root.join("components/nested"))?;
+    fs::write(
+        root.join("page.jsx"),
+        r#"import Panel from "./components/panel";
+export default function Page() { return <Panel />; }"#,
+    )?;
+    fs::write(
+        root.join("components/panel.jsx"),
+        r#"import Label from "./nested/label";
+export default function Panel() { return <Label />; }"#,
+    )?;
+    fs::write(
+        root.join("components/nested/label.jsx"),
+        "export default function Label() { return <strong>nested import</strong>; }",
+    )?;
+
+    let config = RenderConfig {
+        base_dir: Some(root.clone()),
+        fragment: true,
+        ..RenderConfig::default()
+    };
+    let rendered = render_file(&root.join("page.jsx"), &json!({}), &config);
+    let cleanup = fs::remove_dir_all(&root);
+
+    let result = rendered?;
+    cleanup?;
+    assert_eq!(result, "<strong>nested import</strong>");
+    Ok(())
 }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 use swc_ecma_ast::{BinaryOp, CallExpr, Callee, Expr, MemberProp};
 
-use crate::config::RenderConfig;
+use crate::config::{CheckedRenderContext, RenderConfig};
 use crate::error::JsxrsError;
 use crate::escape;
 use crate::eval::{self, EvalContext};
@@ -13,12 +13,20 @@ pub(crate) fn render_jsx_expression(
     expr: &Expr,
     ctx: &EvalContext,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
     match expr {
-        Expr::JSXElement(el) => renderer::render_element(el, ctx, config, imports, state),
-        Expr::JSXFragment(f) => renderer::render_fragment(f, ctx, config, imports, state),
+        Expr::Paren(paren) => {
+            render_jsx_expression(&paren.expr, ctx, config, checked_context, imports, state)
+        }
+        Expr::JSXElement(el) => {
+            renderer::render_element(el, ctx, config, checked_context, imports, state)
+        }
+        Expr::JSXFragment(f) => {
+            renderer::render_fragment(f, ctx, config, checked_context, imports, state)
+        }
         Expr::Cond(c) => {
             let test = eval::eval_expr(&c.test, ctx)?;
             let branch = if eval::is_truthy(&test) {
@@ -26,25 +34,25 @@ pub(crate) fn render_jsx_expression(
             } else {
                 &c.alt
             };
-            render_jsx_expression(branch, ctx, config, imports, state)
+            render_jsx_expression(branch, ctx, config, checked_context, imports, state)
         }
         Expr::Bin(b) if b.op == BinaryOp::LogicalAnd => {
             let lval = eval::eval_expr(&b.left, ctx)?;
             if !eval::is_truthy(&lval) {
                 return Ok(String::new());
             }
-            render_jsx_expression(&b.right, ctx, config, imports, state)
+            render_jsx_expression(&b.right, ctx, config, checked_context, imports, state)
         }
         Expr::Bin(b) if b.op == BinaryOp::LogicalOr => {
             let lval = eval::eval_expr(&b.left, ctx)?;
             if eval::is_truthy(&lval) {
                 return Ok(escape::escape_html(&eval::value_to_string(&lval)));
             }
-            render_jsx_expression(&b.right, ctx, config, imports, state)
+            render_jsx_expression(&b.right, ctx, config, checked_context, imports, state)
         }
         Expr::Call(call) => {
-            if let Some((arr, param, body)) = eval_array_map(call, ctx)? {
-                return render_map(arr, &param, &body, ctx, config, imports, state);
+            if let Some(map) = eval_array_map(call, ctx)? {
+                return render_map(map, ctx, config, checked_context, imports, state);
             }
             let val = eval::eval_expr(expr, ctx)?;
             Ok(escape::escape_html(&eval::value_to_string(&val)))
@@ -60,22 +68,27 @@ pub(crate) fn render_jsx_expression(
 }
 
 fn render_map(
-    arr: Value,
-    param: &str,
-    body: &Expr,
+    map: (Value, String, Expr),
     ctx: &EvalContext,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
+    let (arr, param, body) = map;
     let Value::Array(items) = arr else {
         return Err(JsxrsError::Unsupported("map() on non-array".into()));
     };
     let mut out = String::new();
     for item in items {
-        let local_ctx = ctx.with_local(param.to_string(), item);
+        let local_ctx = ctx.with_local(param.clone(), item);
         out.push_str(&renderer::render_expr(
-            body, &local_ctx, config, imports, state,
+            &body,
+            &local_ctx,
+            config,
+            checked_context,
+            imports,
+            state,
         )?);
     }
     Ok(out)

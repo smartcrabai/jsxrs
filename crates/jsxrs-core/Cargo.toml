@@ -1,0 +1,19 @@
+[package]
+description = "Shared parsing, validation, schema, and route-discovery components for jsxrs."
+edition.workspace = true
+license.workspace = true
+name = "jsxrs-core"
+readme = "README.md"
+version.workspace = true
+
+[dependencies]
+bytes-str.workspace = true
+serde_json.workspace = true
+swc_common.workspace = true
+swc_ecma_ast.workspace = true
+swc_ecma_parser.workspace = true
+swc_ecma_visit.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

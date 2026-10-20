@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use serde_json::Value;
@@ -7,7 +8,7 @@ use swc_ecma_ast::{
 };
 
 use crate::attributes;
-use crate::config::RenderConfig;
+use crate::config::{CheckedRenderContext, RenderConfig};
 use crate::error::JsxrsError;
 use crate::escape;
 use crate::eval::{self, EvalContext};
@@ -42,13 +43,14 @@ pub fn render_module(
     items: &[ModuleItem],
     props: &Value,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
 ) -> Result<(String, RenderState), JsxrsError> {
     let imports = export::collect_imports(items);
     let ctx = EvalContext::new(props.clone());
     let mut state = RenderState::new();
 
     let jsx = export::find_default_export_jsx(items)?;
-    let html = render_expr(&jsx, &ctx, config, &imports, &mut state)?;
+    let html = render_expr(&jsx, &ctx, config, checked_context, &imports, &mut state)?;
 
     Ok((html, state))
 }
@@ -57,13 +59,14 @@ pub(crate) fn render_expr(
     expr: &Expr,
     ctx: &EvalContext,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
     match expr {
-        Expr::JSXElement(el) => render_element(el, ctx, config, imports, state),
-        Expr::JSXFragment(f) => render_fragment(f, ctx, config, imports, state),
-        Expr::Paren(p) => render_expr(&p.expr, ctx, config, imports, state),
+        Expr::JSXElement(el) => render_element(el, ctx, config, checked_context, imports, state),
+        Expr::JSXFragment(f) => render_fragment(f, ctx, config, checked_context, imports, state),
+        Expr::Paren(p) => render_expr(&p.expr, ctx, config, checked_context, imports, state),
         _ => {
             let val = eval::eval_expr(expr, ctx)?;
             if let Some(raw) = eval::extract_raw_html(&val) {
@@ -78,29 +81,31 @@ pub(crate) fn render_element(
     el: &JSXElement,
     ctx: &EvalContext,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
     let tag = element_name_str(&el.opening.name);
 
     if tag == "Head" {
-        return render_head(el, ctx, config, imports, state);
+        return render_head(el, ctx, config, checked_context, imports, state);
     }
     if tag.starts_with(|c: char| c.is_ascii_uppercase()) {
-        return render_component(&tag, el, ctx, config, imports, state);
+        return render_component(&tag, el, ctx, config, checked_context, imports, state);
     }
-    render_html_tag(&tag, el, ctx, config, imports, state)
+    render_html_tag(&tag, el, ctx, config, checked_context, imports, state)
 }
 
 fn render_head(
     el: &JSXElement,
     ctx: &EvalContext,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
     for child in &el.children {
-        let html = render_child(child, ctx, config, imports, state)?;
+        let html = render_child(child, ctx, config, checked_context, imports, state)?;
         if !html.is_empty() {
             state.head.push(html);
         }
@@ -113,25 +118,68 @@ fn render_component(
     el: &JSXElement,
     ctx: &EvalContext,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
     let import_path = imports
         .get(tag)
         .ok_or_else(|| JsxrsError::ImportNotFound { path: tag.into() })?;
-    let base_dir = config
-        .base_dir
-        .as_ref()
-        .ok_or(JsxrsError::BaseDirRequired)?;
-    let resolved = resolver::resolve_import(import_path, base_dir)?;
+    let (resolved, source, component_config, component_context) = if let Some(checked_sources) =
+        checked_context.checked_sources()
+    {
+        let importer = checked_context.source_path().ok_or_else(|| {
+            JsxrsError::Unsupported("checked rendering has no current source identity".to_owned())
+        })?;
+        let resolved = checked_sources.resolve_import(importer, import_path)?;
+        let source_root = crate::source::runtime_source_root(checked_context.source_root())?;
+        let source = Cow::Borrowed(checked_sources.source(&resolved)?);
+        let component_config = RenderConfig {
+            base_dir: resolved
+                .parent()
+                .map(|parent| source_root.join(parent))
+                .or_else(|| config.base_dir.clone()),
+            ..config.clone()
+        };
+        let component_context = checked_context.clone().with_source_path(resolved.clone());
+        (resolved, source, component_config, component_context)
+    } else {
+        let base_dir = config
+            .base_dir
+            .as_ref()
+            .ok_or(JsxrsError::BaseDirRequired)?;
+        let resolved = resolver::resolve_import(import_path, base_dir)?;
+        let source = Cow::Owned(
+            std::fs::read_to_string(&resolved)
+                .map_err(|_| JsxrsError::FileNotFound(resolved.clone()))?,
+        );
+        let component_config = RenderConfig {
+            base_dir: resolved
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .or_else(|| config.base_dir.clone()),
+            ..config.clone()
+        };
+        (resolved, source, component_config, checked_context.clone())
+    };
+    let fname = resolved.to_string_lossy().into_owned();
+    let (module, _) = parser::parse_source(source.as_ref(), &fname)?;
 
-    let source = std::fs::read_to_string(&resolved)
-        .map_err(|_| JsxrsError::FileNotFound(resolved.clone()))?;
-    let fname = resolved.to_string_lossy().to_string();
-    let (module, _) = parser::parse_source(&source, &fname)?;
-
-    let component_props = build_component_props(&el.opening.attrs, ctx)?;
-    let (html, inner_state) = render_module(&module.body, &component_props, config)?;
+    let mut component_props = build_component_props(&el.opening.attrs, ctx)?;
+    if checked_context.checked_sources().is_some()
+        && let Some(schema) = jsxrs_core::extract_props_schema(&module)?
+        && let Value::Object(props) = &mut component_props
+    {
+        for field in schema.fields.into_iter().filter(|field| field.optional) {
+            props.entry(field.name).or_insert(Value::Null);
+        }
+    }
+    let (html, inner_state) = render_module(
+        &module.body,
+        &component_props,
+        &component_config,
+        &component_context,
+    )?;
 
     state.head.extend(inner_state.head);
     state.class_names.extend(inner_state.class_names);
@@ -170,6 +218,7 @@ fn render_html_tag(
     el: &JSXElement,
     ctx: &EvalContext,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
@@ -197,7 +246,14 @@ fn render_html_tag(
     }
 
     for child in &el.children {
-        out.push_str(&render_child(child, ctx, config, imports, state)?);
+        out.push_str(&render_child(
+            child,
+            ctx,
+            config,
+            checked_context,
+            imports,
+            state,
+        )?);
     }
     out.push_str("</");
     out.push_str(tag);
@@ -209,12 +265,20 @@ pub(crate) fn render_fragment(
     frag: &JSXFragment,
     ctx: &EvalContext,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
     let mut out = String::new();
     for child in &frag.children {
-        out.push_str(&render_child(child, ctx, config, imports, state)?);
+        out.push_str(&render_child(
+            child,
+            ctx,
+            config,
+            checked_context,
+            imports,
+            state,
+        )?);
     }
     Ok(out)
 }
@@ -223,6 +287,7 @@ fn render_child(
     child: &JSXElementChild,
     ctx: &EvalContext,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
@@ -231,10 +296,14 @@ fn render_child(
             let text = t.value.to_string_lossy();
             Ok(escape::escape_html(&normalize_jsx_text(&text)))
         }
-        JSXElementChild::JSXElement(el) => render_element(el, ctx, config, imports, state),
-        JSXElementChild::JSXFragment(f) => render_fragment(f, ctx, config, imports, state),
+        JSXElementChild::JSXElement(el) => {
+            render_element(el, ctx, config, checked_context, imports, state)
+        }
+        JSXElementChild::JSXFragment(f) => {
+            render_fragment(f, ctx, config, checked_context, imports, state)
+        }
         JSXElementChild::JSXExprContainer(c) => {
-            render_expr_container(c, ctx, config, imports, state)
+            render_expr_container(c, ctx, config, checked_context, imports, state)
         }
         JSXElementChild::JSXSpreadChild(_) => Ok(String::new()),
     }
@@ -244,11 +313,14 @@ fn render_expr_container(
     container: &JSXExprContainer,
     ctx: &EvalContext,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
     imports: &HashMap<String, String>,
     state: &mut RenderState,
 ) -> Result<String, JsxrsError> {
     match &container.expr {
-        JSXExpr::Expr(e) => jsx_expr::render_jsx_expression(e, ctx, config, imports, state),
+        JSXExpr::Expr(e) => {
+            jsx_expr::render_jsx_expression(e, ctx, config, checked_context, imports, state)
+        }
         JSXExpr::JSXEmptyExpr(_) => Ok(String::new()),
     }
 }

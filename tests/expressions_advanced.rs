@@ -43,6 +43,79 @@ fn should_render_empty_list_when_given_empty_array_map() -> Result<(), Box<dyn s
 }
 
 #[test]
+fn should_render_parenthesized_ternary_jsx_children() -> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return <div>{props.show ? (<b>visible</b>) : null}</div>;
+}";
+
+    let result = render_string(source, "p.jsx", &json!({"show": true}), &minimal_config())?;
+
+    assert_eq!(
+        extract_body(&result).ok_or("missing body")?,
+        "<div><b>visible</b></div>"
+    );
+    Ok(())
+}
+
+#[test]
+fn should_render_parenthesized_logical_jsx_children() -> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return <div>{props.show && (<b>visible</b>)}</div>;
+}";
+
+    let result = render_string(source, "p.jsx", &json!({"show": true}), &minimal_config())?;
+
+    assert_eq!(
+        extract_body(&result).ok_or("missing body")?,
+        "<div><b>visible</b></div>"
+    );
+    Ok(())
+}
+
+#[test]
+fn should_render_parenthesized_map_expression_in_jsx_child()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return <ul>{(props.items.map(item => <li>{item}</li>))}</ul>;
+}";
+
+    let result = render_string(
+        source,
+        "p.jsx",
+        &json!({"items": ["one", "two"]}),
+        &minimal_config(),
+    )?;
+
+    assert_eq!(
+        extract_body(&result).ok_or("missing body")?,
+        "<ul><li>one</li><li>two</li></ul>"
+    );
+    Ok(())
+}
+
+#[test]
+fn should_preserve_scalar_short_circuit_result_at_root() -> Result<(), Box<dyn std::error::Error>> {
+    let source = "export default function Page() { return 0 && 1; }";
+
+    let result = render_string(source, "p.jsx", &json!({}), &minimal_config())?;
+
+    assert_eq!(extract_body(&result).ok_or("missing body")?, "0");
+    Ok(())
+}
+
+#[test]
+fn should_not_evaluate_the_unselected_short_circuit_operand()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source =
+        "export default function Page(props) { return <div>{props.show && props.missing}</div>; }";
+
+    let result = render_string(source, "p.jsx", &json!({"show": false}), &minimal_config())?;
+
+    assert_eq!(extract_body(&result).ok_or("missing body")?, "<div></div>");
+    Ok(())
+}
+
+#[test]
 fn should_access_object_properties_in_map_callback() -> Result<(), Box<dyn std::error::Error>> {
     // Given
     let source = r"export default function Page(props) {

@@ -149,9 +149,60 @@ In fragment mode:
 - `<Head>` component content is ignored (already loaded by the full-page response)
 - Tailwind CSS `<style>` tags are skipped (already loaded by the full-page response)
 
+### Compile-time component modules
+
+`component!` resolves a TSX/JSX source path relative to the consuming crate's manifest, checks its local default-component import graph, and generates a Rust `Props` type when the component has a supported local props annotation:
+
+```tsx
+// templates/profile.tsx
+interface ProfileProps {
+  name: string;
+}
+
+export default function Profile(props: ProfileProps) {
+  return <h1>Hello {props.name}</h1>;
+}
+```
+
+```rust
+jsxrs::component!(pub profile, "templates/profile.tsx");
+
+fn render_profile() -> Result<String, jsxrs::JsxrsError> {
+    let props = profile::Props {
+        name: "Alice".to_owned(),
+    };
+    profile::render(&props, &jsxrs::RenderConfig::default())
+}
+```
+
+The generated module can be used with `jsxrs` as the only direct dependency. Local interface/type object props with string, number, boolean, array, optional, nullable, and `any`/`unknown` fields are supported. Unsupported annotated schemas and unsupported checked expressions are compile errors. This is a bounded JSX/TSX checker, not a general TypeScript type checker. An unannotated component has no generated `Props` struct and exposes `render` with a reference to the `serde_json::Value` reexport under `jsxrs::__private`.
+
+The macro tracks the files it reads so Cargo can rerun the check when those files change. It does not track the addition of previously absent files in a directory. A new page or a new import-resolution candidate requires a build to rerun. At runtime, `render` uses the regular interpreter on source text embedded at compile time and verifies that the corresponding files on disk are present and unchanged, so deploy those files alongside the application.
+
 ### File-based Routing (Axum)
 
-Enable the `axum` feature flag and use `JsxRouter` to automatically build an Axum router from a directory of JSX/TSX files:
+Enable the `axum` feature flag and use `routes!` to build an Axum router from the discovered JSX/TSX files at compile time:
+
+```rust
+use jsxrs::RenderConfig;
+
+#[tokio::main]
+async fn main() {
+    let app = jsxrs::routes!("app")
+        .with_config(RenderConfig { tailwind: true, ..Default::default() })
+        .into_router()
+        .expect("failed to build router");
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+`routes!` resolves the directory relative to the consuming crate, checks the discovered page/layout import graphs, and embeds the discovered route entries. Its `into_router()` path does not rescan the directory or add routes. The generated entries still refer to runtime source files, which must be deployed with the application. To make Cargo rerun the macro when new route files are added, a consumer may add `println!("cargo:rerun-if-changed=app");` in `build.rs`; explicit recompilation is also required after adding routes.
+
+#### Legacy runtime-discovery API: `JsxRouter::new`
+
+For runtime route discovery instead of a compile-time route table, the legacy API remains available:
 
 ```rust
 use jsxrs::router::JsxRouter;
@@ -254,8 +305,11 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
+    #[serde(rename = "id")]
     pub id: f64,
+    #[serde(rename = "name")]
     pub name: String,
+    #[serde(rename = "email")]
     pub email: Option<String>,
 }
 ```
@@ -324,6 +378,12 @@ Configuration for the rendering pipeline:
 | `head_elements` | `Vec<HeadElement>` | Static head elements to include |
 | `tailwind` | `bool` | Enable Tailwind CSS generation |
 | `fragment` | `bool` | Return body HTML only, skipping the full document wrapper |
+
+Checked components accept a `CheckedRenderContext` through their generated
+`render_with_context` function. Use `CheckedRenderContext::with_source_root`
+when checked sources are relocated at runtime. Checked routes expose the same
+override through `JsxRouter::with_source_root`; both APIs default to the
+consuming crate's manifest directory when no override is provided.
 
 ### `HeadElement`
 
