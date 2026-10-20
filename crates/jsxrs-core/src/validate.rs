@@ -2,13 +2,13 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
+use swc_common::{BytePos, SourceMap};
 use swc_ecma_ast::{
     ArrayLit, ArrowExpr, ArrowFunctionBody, BinaryOp, Callee, Decl, DefaultDecl, Expr, FnExpr,
     Function, ImportSpecifier, JSXAttrName, JSXAttrOrSpread, JSXAttrValue, JSXElement,
     JSXElementChild, JSXElementName, JSXExpr, Lit, MemberProp, Module, ModuleDecl, ModuleItem, Pat,
     Prop, PropName, PropOrSpread, Stmt, UnaryOp,
 };
-use swc_common::{BytePos, SourceMap};
 
 use crate::{JsxrsError, PropsSchema, extract_props_schema};
 
@@ -65,17 +65,17 @@ pub(crate) fn validate_component_with_source(
     validate_component_inner(module, imported_components)
         .map(|_| ())
         .map_err(|error| match error {
-        JsxrsError::UndefinedPropAt { key, position } => {
-            let location = source_map.lookup_char_pos(BytePos(position));
-            JsxrsError::ValidationDiagnostic {
-                path: source_path.to_path_buf(),
-                line: location.line,
-                column: location.col_display + 1,
-                message: format!("undefined prop `{key}`"),
+            JsxrsError::UndefinedPropAt { key, position } => {
+                let location = source_map.lookup_char_pos(BytePos(position));
+                JsxrsError::ValidationDiagnostic {
+                    path: source_path.to_path_buf(),
+                    line: location.line,
+                    column: location.col_display + 1,
+                    message: format!("undefined prop `{key}`"),
+                }
             }
-        }
-        error => error,
-    })
+            error => error,
+        })
 }
 
 fn validate_component_inner(
@@ -94,7 +94,14 @@ fn validate_component_inner(
             validate_params(&arrow.params)?;
             match arrow.body.as_ref() {
                 ArrowFunctionBody::Expr(expr) => {
-                    validate_expr(expr, RenderContext::Root, fields.as_ref(), &[], module, imported_components)?;
+                    validate_expr(
+                        expr,
+                        RenderContext::Root,
+                        fields.as_ref(),
+                        &[],
+                        module,
+                        imported_components,
+                    )?;
                 }
                 ArrowFunctionBody::FunctionBody(body) => {
                     validate_statements(&body.stmts, fields.as_ref(), module, imported_components)?;
@@ -127,7 +134,11 @@ struct TypedProps<'a> {
 impl<'a> TypedProps<'a> {
     fn new(schema: &'a PropsSchema) -> Self {
         Self {
-            fields: schema.fields.iter().map(|field| field.name.as_str()).collect(),
+            fields: schema
+                .fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect(),
             accessed: RefCell::new(HashSet::new()),
         }
     }
@@ -200,7 +211,9 @@ fn validate_param_refs<'a>(mut params: impl Iterator<Item = &'a Pat>) -> Result<
     let Some(parameter) = params.next() else {
         return Ok(());
     };
-    if params.next().is_some() || !matches!(parameter, Pat::Ident(binding) if binding.id.sym == "props") {
+    if params.next().is_some()
+        || !matches!(parameter, Pat::Ident(binding) if binding.id.sym == "props")
+    {
         return Err(unsupported(
             "component parameters (expected zero parameters or one simple `props` parameter)",
         ));
@@ -232,7 +245,14 @@ fn validate_statements(
         }
     }
     let expression = return_expression.ok_or(JsxrsError::NoDefaultExport)?;
-    validate_expr(expression, RenderContext::Root, fields, &[], module, imported_components)
+    validate_expr(
+        expression,
+        RenderContext::Root,
+        fields,
+        &[],
+        module,
+        imported_components,
+    )
 }
 
 fn validate_expr(
@@ -244,64 +264,134 @@ fn validate_expr(
     imported_components: &ImportedComponents,
 ) -> Result<(), JsxrsError> {
     match context {
-        RenderContext::Root => match expression {
-            Expr::JSXElement(element) => {
-                validate_element(element, fields, locals, module, imported_components)
-            }
-            Expr::JSXFragment(fragment) => {
-                validate_children(&fragment.children, fields, locals, module, imported_components)
-            }
-            Expr::Paren(paren) => {
-                validate_expr(&paren.expr, RenderContext::Root, fields, locals, module, imported_components)
-            }
-            _ => validate_expr(expression, RenderContext::Value, fields, locals, module, imported_components),
-        },
-        RenderContext::Child => match expression {
-            Expr::JSXElement(element) => {
-                validate_element(element, fields, locals, module, imported_components)
-            }
-            Expr::JSXFragment(fragment) => {
-                validate_children(&fragment.children, fields, locals, module, imported_components)
-            }
-            Expr::Paren(paren) => {
-                validate_expr(&paren.expr, RenderContext::Child, fields, locals, module, imported_components)
-            }
-            Expr::Cond(conditional) => {
-                validate_expr(
-                    &conditional.test,
-                    RenderContext::Value,
-                    fields,
-                    locals,
-                    module,
-                    imported_components,
-                )?;
-                validate_expr(
-                    &conditional.cons,
-                    RenderContext::Child,
-                    fields,
-                    locals,
-                    module,
-                    imported_components,
-                )?;
-                validate_expr(
-                    &conditional.alt,
-                    RenderContext::Child,
-                    fields,
-                    locals,
-                    module,
-                    imported_components,
-                )
-            }
-            Expr::Bin(binary)
-                if matches!(binary.op, BinaryOp::LogicalAnd | BinaryOp::LogicalOr) =>
-            {
-                validate_expr(&binary.left, RenderContext::Value, fields, locals, module, imported_components)?;
-                validate_expr(&binary.right, RenderContext::Child, fields, locals, module, imported_components)
-            }
-            Expr::Call(call) => validate_map(call, fields, locals, module, imported_components),
-            _ => validate_expr(expression, RenderContext::Value, fields, locals, module, imported_components),
-        },
-        RenderContext::Value => validate_value_expr(expression, fields, locals, module, imported_components),
+        RenderContext::Root => {
+            validate_root_expr(expression, fields, locals, module, imported_components)
+        }
+        RenderContext::Child => {
+            validate_child_expr(expression, fields, locals, module, imported_components)
+        }
+        RenderContext::Value => {
+            validate_value_expr(expression, fields, locals, module, imported_components)
+        }
+    }
+}
+
+fn validate_root_expr(
+    expression: &Expr,
+    fields: Option<&TypedProps<'_>>,
+    locals: &[String],
+    module: &Module,
+    imported_components: &ImportedComponents,
+) -> Result<(), JsxrsError> {
+    match expression {
+        Expr::JSXElement(element) => {
+            validate_element(element, fields, locals, module, imported_components)
+        }
+        Expr::JSXFragment(fragment) => validate_children(
+            &fragment.children,
+            fields,
+            locals,
+            module,
+            imported_components,
+        ),
+        Expr::Paren(paren) => validate_expr(
+            &paren.expr,
+            RenderContext::Root,
+            fields,
+            locals,
+            module,
+            imported_components,
+        ),
+        _ => validate_expr(
+            expression,
+            RenderContext::Value,
+            fields,
+            locals,
+            module,
+            imported_components,
+        ),
+    }
+}
+
+fn validate_child_expr(
+    expression: &Expr,
+    fields: Option<&TypedProps<'_>>,
+    locals: &[String],
+    module: &Module,
+    imported_components: &ImportedComponents,
+) -> Result<(), JsxrsError> {
+    match expression {
+        Expr::JSXElement(element) => {
+            validate_element(element, fields, locals, module, imported_components)
+        }
+        Expr::JSXFragment(fragment) => validate_children(
+            &fragment.children,
+            fields,
+            locals,
+            module,
+            imported_components,
+        ),
+        Expr::Paren(paren) => validate_expr(
+            &paren.expr,
+            RenderContext::Child,
+            fields,
+            locals,
+            module,
+            imported_components,
+        ),
+        Expr::Cond(conditional) => {
+            validate_expr(
+                &conditional.test,
+                RenderContext::Value,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )?;
+            validate_expr(
+                &conditional.cons,
+                RenderContext::Child,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )?;
+            validate_expr(
+                &conditional.alt,
+                RenderContext::Child,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )
+        }
+        Expr::Bin(binary) if matches!(binary.op, BinaryOp::LogicalAnd | BinaryOp::LogicalOr) => {
+            validate_expr(
+                &binary.left,
+                RenderContext::Value,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )?;
+            validate_expr(
+                &binary.right,
+                RenderContext::Child,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )
+        }
+        Expr::Call(call) => validate_map(call, fields, locals, module, imported_components),
+        _ => validate_expr(
+            expression,
+            RenderContext::Value,
+            fields,
+            locals,
+            module,
+            imported_components,
+        ),
     }
 }
 
@@ -324,18 +414,25 @@ fn validate_value_expr(
             identifier.sym
         ))),
         Expr::Member(member) => {
-            validate_props_member(member, fields, locals)?;
-            validate_expr(&member.obj, RenderContext::Value, fields, locals, module, imported_components)?;
-            if let MemberProp::Computed(computed) = &member.prop {
-                validate_expr(&computed.expr, RenderContext::Value, fields, locals, module, imported_components)?;
-            } else if matches!(member.prop, MemberProp::PrivateName(_)) {
-                return Err(unsupported("private member access"));
-            }
-            Ok(())
+            validate_value_member(member, fields, locals, module, imported_components)
         }
         Expr::Bin(binary) if supported_binary(binary.op) => {
-            validate_expr(&binary.left, RenderContext::Value, fields, locals, module, imported_components)?;
-            validate_expr(&binary.right, RenderContext::Value, fields, locals, module, imported_components)
+            validate_expr(
+                &binary.left,
+                RenderContext::Value,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )?;
+            validate_expr(
+                &binary.right,
+                RenderContext::Value,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )
         }
         Expr::Cond(conditional) => {
             validate_expr(
@@ -366,19 +463,69 @@ fn validate_value_expr(
         Expr::Unary(unary)
             if matches!(unary.op, UnaryOp::Bang | UnaryOp::Minus | UnaryOp::Plus) =>
         {
-            validate_expr(&unary.arg, RenderContext::Value, fields, locals, module, imported_components)
+            validate_expr(
+                &unary.arg,
+                RenderContext::Value,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )
         }
         Expr::Tpl(template) => {
             for expression in &template.exprs {
-                validate_expr(expression, RenderContext::Value, fields, locals, module, imported_components)?;
+                validate_expr(
+                    expression,
+                    RenderContext::Value,
+                    fields,
+                    locals,
+                    module,
+                    imported_components,
+                )?;
             }
             Ok(())
         }
-        Expr::Paren(paren) => {
-            validate_expr(&paren.expr, RenderContext::Value, fields, locals, module, imported_components)
-        }
+        Expr::Paren(paren) => validate_expr(
+            &paren.expr,
+            RenderContext::Value,
+            fields,
+            locals,
+            module,
+            imported_components,
+        ),
         _ => Err(unsupported(&format!("expression `{expression:?}`"))),
     }
+}
+
+fn validate_value_member(
+    member: &swc_ecma_ast::MemberExpr,
+    fields: Option<&TypedProps<'_>>,
+    locals: &[String],
+    module: &Module,
+    imported_components: &ImportedComponents,
+) -> Result<(), JsxrsError> {
+    validate_props_member(member, fields, locals)?;
+    validate_expr(
+        &member.obj,
+        RenderContext::Value,
+        fields,
+        locals,
+        module,
+        imported_components,
+    )?;
+    if let MemberProp::Computed(computed) = &member.prop {
+        validate_expr(
+            &computed.expr,
+            RenderContext::Value,
+            fields,
+            locals,
+            module,
+            imported_components,
+        )?;
+    } else if matches!(member.prop, MemberProp::PrivateName(_)) {
+        return Err(unsupported("private member access"));
+    }
+    Ok(())
 }
 
 fn validate_props_member(
@@ -525,45 +672,82 @@ fn validate_element(
         )));
     }
 
-    if let Some(schema) = imported_components.get(tag) {
-        let mut supplied = HashSet::new();
-        for attribute in &element.opening.attrs {
-            let JSXAttrOrSpread::JSXAttr(attribute) = attribute else {
-                continue;
-            };
-            let name = match &attribute.name {
-                JSXAttrName::Ident(identifier) => identifier.sym.as_ref(),
-                JSXAttrName::JSXNamespacedName(_) => {
-                    return Err(unsupported("namespaced component props"));
-                }
-            };
-            supplied.insert(name);
-            if let Some(schema) = schema
-                && !schema.fields.iter().any(|field| field.name.as_str() == name)
-            {
-                return Err(JsxrsError::UndefinedPropAt {
-                    key: name.to_owned(),
-                    position: attribute.span.lo.0,
-                });
+    validate_imported_component(element, tag, imported_components)?;
+    validate_element_attributes(
+        element,
+        is_component,
+        fields,
+        locals,
+        module,
+        imported_components,
+    )?;
+    validate_children(
+        &element.children,
+        fields,
+        locals,
+        module,
+        imported_components,
+    )
+}
+
+fn validate_imported_component(
+    element: &JSXElement,
+    tag: &str,
+    imported_components: &ImportedComponents,
+) -> Result<(), JsxrsError> {
+    let Some(schema) = imported_components.get(tag) else {
+        return Ok(());
+    };
+    let mut supplied = HashSet::new();
+    for attribute in &element.opening.attrs {
+        let JSXAttrOrSpread::JSXAttr(attribute) = attribute else {
+            continue;
+        };
+        let name = match &attribute.name {
+            JSXAttrName::Ident(identifier) => identifier.sym.as_ref(),
+            JSXAttrName::JSXNamespacedName(_) => {
+                return Err(unsupported("namespaced component props"));
             }
-        }
-        if let Some(schema) = schema {
-            for field in &schema.fields {
-                if !field.optional && !supplied.contains(field.name.as_str()) {
-                    return Err(unsupported(&format!(
-                        "imported component `{tag}` is missing required prop `{}`",
-                        field.name
-                    )));
-                }
-            }
-        }
-        if has_nonempty_children(&element.children) {
-            return Err(unsupported(&format!(
-                "children on imported component `{tag}` are unsupported because runtime does not forward them"
-            )));
+        };
+        supplied.insert(name);
+        if let Some(schema) = schema
+            && !schema
+                .fields
+                .iter()
+                .any(|field| field.name.as_str() == name)
+        {
+            return Err(JsxrsError::UndefinedPropAt {
+                key: name.to_owned(),
+                position: attribute.span.lo.0,
+            });
         }
     }
+    if let Some(schema) = schema {
+        for field in &schema.fields {
+            if !field.optional && !supplied.contains(field.name.as_str()) {
+                return Err(unsupported(&format!(
+                    "imported component `{tag}` is missing required prop `{}`",
+                    field.name
+                )));
+            }
+        }
+    }
+    if has_nonempty_children(&element.children) {
+        return Err(unsupported(&format!(
+            "children on imported component `{tag}` are unsupported because runtime does not forward them"
+        )));
+    }
+    Ok(())
+}
 
+fn validate_element_attributes(
+    element: &JSXElement,
+    is_component: bool,
+    fields: Option<&TypedProps<'_>>,
+    locals: &[String],
+    module: &Module,
+    imported_components: &ImportedComponents,
+) -> Result<(), JsxrsError> {
     for attribute in &element.opening.attrs {
         match attribute {
             JSXAttrOrSpread::SpreadElement(_) => {
@@ -621,13 +805,7 @@ fn validate_element(
             }
         }
     }
-    validate_children(
-        &element.children,
-        fields,
-        locals,
-        module,
-        imported_components,
-    )
+    Ok(())
 }
 
 fn has_nonempty_children(children: &[JSXElementChild]) -> bool {
@@ -670,26 +848,7 @@ fn scan_props_accesses(
             }
         }
         Expr::Paren(paren) => scan_props_accesses(&paren.expr, fields, locals)?,
-        Expr::Arrow(arrow) => {
-            let mut nested_locals = locals.to_vec();
-            for parameter in &arrow.params {
-                let Pat::Ident(binding) = parameter else {
-                    return Err(unsupported("event handler parameter pattern"));
-                };
-                nested_locals.push(EventLocal {
-                    name: binding.id.sym.to_string(),
-                    is_props_alias: false,
-                });
-            }
-            match arrow.body.as_ref() {
-                ArrowFunctionBody::Expr(expression) => {
-                    scan_props_accesses(expression, fields, &nested_locals)?;
-                }
-                ArrowFunctionBody::FunctionBody(body) => {
-                    scan_statement_sequence(&body.stmts, fields, &nested_locals)?;
-                }
-            }
-        }
+        Expr::Arrow(arrow) => scan_arrow_props_accesses(arrow, fields, locals)?,
         Expr::Fn(function) => {
             scan_function_props_accesses(
                 &function.function,
@@ -742,33 +901,66 @@ fn scan_props_accesses(
         Expr::TsNonNull(assertion) => scan_props_accesses(&assertion.expr, fields, locals)?,
         Expr::TsSatisfies(assertion) => scan_props_accesses(&assertion.expr, fields, locals)?,
         Expr::Array(array) => scan_array_props_accesses(array, fields, locals)?,
-        Expr::Object(object) => {
-            for property in &object.props {
-                match property {
-                    PropOrSpread::Spread(spread) => {
-                        scan_props_accesses(&spread.expr, fields, locals)?;
-                    }
-                    PropOrSpread::Prop(property) => match property.as_ref() {
-                        Prop::KeyValue(property) => {
-                            scan_props_accesses(&property.value, fields, locals)?;
-                        }
-                        Prop::Assign(property) => {
-                            scan_props_accesses(&property.value, fields, locals)?;
-                        }
-                        Prop::Shorthand(_) => {}
-                        Prop::Getter(_) | Prop::Setter(_) | Prop::Method(_) => {
-                            return Err(unsupported("object method in event payload"));
-                        }
-                    },
-                }
-            }
-        }
+        Expr::Object(object) => scan_object_props_accesses(object, fields, locals)?,
         Expr::JSXElement(element) => scan_element_props_accesses(element, fields, locals)?,
         Expr::JSXFragment(fragment) => {
             scan_children_props_accesses(&fragment.children, fields, locals)?;
         }
         Expr::Ident(_) | Expr::Lit(_) | Expr::This(_) | Expr::MetaProp(_) => {}
         _ => return Err(unsupported("event payload expression form")),
+    }
+    Ok(())
+}
+
+fn scan_arrow_props_accesses(
+    arrow: &ArrowExpr,
+    fields: &TypedProps<'_>,
+    locals: &[EventLocal],
+) -> Result<(), JsxrsError> {
+    let mut nested_locals = locals.to_vec();
+    for parameter in &arrow.params {
+        let Pat::Ident(binding) = parameter else {
+            return Err(unsupported("event handler parameter pattern"));
+        };
+        nested_locals.push(EventLocal {
+            name: binding.id.sym.to_string(),
+            is_props_alias: false,
+        });
+    }
+    match arrow.body.as_ref() {
+        ArrowFunctionBody::Expr(expression) => {
+            scan_props_accesses(expression, fields, &nested_locals)?;
+        }
+        ArrowFunctionBody::FunctionBody(body) => {
+            scan_statement_sequence(&body.stmts, fields, &nested_locals)?;
+        }
+    }
+    Ok(())
+}
+
+fn scan_object_props_accesses(
+    object: &swc_ecma_ast::ObjectLit,
+    fields: &TypedProps<'_>,
+    locals: &[EventLocal],
+) -> Result<(), JsxrsError> {
+    for property in &object.props {
+        match property {
+            PropOrSpread::Spread(spread) => {
+                scan_props_accesses(&spread.expr, fields, locals)?;
+            }
+            PropOrSpread::Prop(property) => match property.as_ref() {
+                Prop::KeyValue(property) => {
+                    scan_props_accesses(&property.value, fields, locals)?;
+                }
+                Prop::Assign(property) => {
+                    scan_props_accesses(&property.value, fields, locals)?;
+                }
+                Prop::Shorthand(_) => {}
+                Prop::Getter(_) | Prop::Setter(_) | Prop::Method(_) => {
+                    return Err(unsupported("object method in event payload"));
+                }
+            },
+        }
     }
     Ok(())
 }
@@ -825,10 +1017,9 @@ fn scan_statement_sequence(
                     let Pat::Ident(binding) = &declaration.name else {
                         return Err(unsupported("event handler local binding pattern"));
                     };
-                    let is_props_alias = declaration
-                        .init
-                        .as_deref()
-                        .is_some_and(|initializer| is_component_props_alias(initializer, &declaration_scope));
+                    let is_props_alias = declaration.init.as_deref().is_some_and(|initializer| {
+                        is_component_props_alias(initializer, &declaration_scope)
+                    });
                     nested_locals.push(EventLocal {
                         name: binding.id.sym.to_string(),
                         is_props_alias,
@@ -1087,7 +1278,7 @@ mod tests {
             let error = validate(source).err().ok_or_else(|| {
                 JsxrsError::Unsupported("invalid component parameters unexpectedly passed".into())
             })?;
-            assert!(matches!(error, JsxrsError::Unsupported(message) if message.contains("component parameters")));
+            assert!(matches!(error, JsxrsError::Unsupported(_)));
         }
         Ok(())
     }

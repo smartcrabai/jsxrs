@@ -54,7 +54,10 @@ fn expand_routes(input: &LitStr) -> syn::Result<proc_macro2::TokenStream> {
         .map(PathBuf::from)
         .ok_or_else(|| syn::Error::new(input.span(), "CARGO_MANIFEST_DIR is not set"))?;
     let manifest_dir = manifest_dir.canonicalize().map_err(|error| {
-        syn::Error::new(input.span(), format!("unable to resolve crate source root: {error}"))
+        syn::Error::new(
+            input.span(),
+            format!("unable to resolve crate source root: {error}"),
+        )
     })?;
     let route_dir = PathBuf::from(input.value());
     let route_dir = if route_dir.is_absolute() {
@@ -107,9 +110,9 @@ fn expand_routes(input: &LitStr) -> syn::Result<proc_macro2::TokenStream> {
                 Some(&source),
                 source_map,
             )
-                .map_err(|error| {
-                    syn::Error::new(input.span(), graph_error_message(&file_name, error))
-                })?;
+            .map_err(|error| {
+                syn::Error::new(input.span(), graph_error_message(&file_name, error))
+            })?;
             let accessed = jsxrs_core::validate_component_accesses(&module)
                 .map_err(|error| syn::Error::new(input.span(), format!("{file_name}: {error}")))?;
             route_accesses.insert(source_path, accessed);
@@ -126,22 +129,7 @@ fn expand_routes(input: &LitStr) -> syn::Result<proc_macro2::TokenStream> {
     let source_root = LitStr::new(&manifest_dir.to_string_lossy(), input.span());
     let checked_sources =
         checked_sources_tokens(&checked_files, &manifest_dir, input.span(), &runtime_path)?;
-    let route_entries = entries.iter().map(|entry| {
-        let axum_path = LitStr::new(&entry.axum_path, input.span());
-        let page_file = relative_source_path(&entry.page_file, &manifest_dir, input.span())?;
-        let layouts = entry
-            .layouts
-            .iter()
-            .map(|path| relative_source_path(path, &manifest_dir, input.span()))
-            .collect::<syn::Result<Vec<_>>>()?;
-        Ok(quote! {
-            #runtime_path::router::RouteEntry {
-                axum_path: #axum_path.to_owned(),
-                page_file: ::std::path::PathBuf::from(#page_file),
-                layouts: vec![#(::std::path::PathBuf::from(#layouts)),*],
-            }
-        })
-    }).collect::<syn::Result<Vec<_>>>()?;
+    let route_entries = route_entries_tokens(&entries, &manifest_dir, input.span(), &runtime_path)?;
     Ok(quote! {{
         let checked_sources = #checked_sources;
         #runtime_path::router::JsxRouter::__from_checked_sources(
@@ -150,6 +138,33 @@ fn expand_routes(input: &LitStr) -> syn::Result<proc_macro2::TokenStream> {
             ::std::path::PathBuf::from(#source_root),
         )
     }})
+}
+
+fn route_entries_tokens(
+    entries: &[jsxrs_core::discovery::RouteEntry],
+    manifest_dir: &Path,
+    span: proc_macro2::Span,
+    runtime_path: &proc_macro2::TokenStream,
+) -> syn::Result<Vec<proc_macro2::TokenStream>> {
+    entries
+        .iter()
+        .map(|entry| {
+            let axum_path = LitStr::new(&entry.axum_path, span);
+            let page_file = relative_source_path(&entry.page_file, manifest_dir, span)?;
+            let layouts = entry
+                .layouts
+                .iter()
+                .map(|path| relative_source_path(path, manifest_dir, span))
+                .collect::<syn::Result<Vec<_>>>()?;
+            Ok(quote! {
+                #runtime_path::router::RouteEntry {
+                    axum_path: #axum_path.to_owned(),
+                    page_file: ::std::path::PathBuf::from(#page_file),
+                    layouts: vec![#(::std::path::PathBuf::from(#layouts)),*],
+                }
+            })
+        })
+        .collect()
 }
 
 fn validate_route_props(
@@ -240,11 +255,9 @@ fn expand_component(input: ComponentInput) -> syn::Result<proc_macro2::TokenStre
     let schema = jsxrs_core::extract_props_schema(&module_ast).map_err(|error| {
         syn::Error::new(input.source_path.span(), format!("{display_path}: {error}"))
     })?;
-    let source_identity = relative_source_path(&source_path, &source_root, input.source_path.span())?;
-    let source_root_literal = LitStr::new(
-        &source_root.to_string_lossy(),
-        input.source_path.span(),
-    );
+    let source_identity =
+        relative_source_path(&source_path, &source_root, input.source_path.span())?;
+    let source_root_literal = LitStr::new(&source_root.to_string_lossy(), input.source_path.span());
     let runtime_path = runtime_crate_path(input.source_path.span())?;
     let checked_sources = checked_sources_tokens(
         &checked_files,
@@ -342,9 +355,10 @@ fn read_component_source(
         )
     })?;
     let display_path = input.source_path.value();
-    let (module, source_map) = jsxrs_core::parse_source(&source, &display_path).map_err(|error| {
-        syn::Error::new(input.source_path.span(), format!("{display_path}: {error}"))
-    })?;
+    let (module, source_map) =
+        jsxrs_core::parse_source(&source, &display_path).map_err(|error| {
+            syn::Error::new(input.source_path.span(), format!("{display_path}: {error}"))
+        })?;
     let checked_files = jsxrs_core::resolve_component_graph_snapshot_with_source_map(
         &source_path,
         &module,
@@ -358,7 +372,10 @@ fn read_component_source(
         )
     })?;
     let source_root = manifest_dir.canonicalize().map_err(|error| {
-        syn::Error::new(input.source_path.span(), format!("unable to resolve crate source root: {error}"))
+        syn::Error::new(
+            input.source_path.span(),
+            format!("unable to resolve crate source root: {error}"),
+        )
     })?;
     Ok((source_path, module, checked_files.files, source_root))
 }
@@ -370,14 +387,27 @@ fn graph_error_message(path: &str, error: jsxrs_core::JsxrsError) -> String {
     }
 }
 
-fn relative_source_path(path: &Path, source_root: &Path, span: proc_macro2::Span) -> syn::Result<LitStr> {
+fn relative_source_path(
+    path: &Path,
+    source_root: &Path,
+    span: proc_macro2::Span,
+) -> syn::Result<LitStr> {
     let canonical_path = path.canonicalize().map_err(|error| {
-        syn::Error::new(span, format!("{}: unable to resolve checked source path: {error}", path.display()))
+        syn::Error::new(
+            span,
+            format!(
+                "{}: unable to resolve checked source path: {error}",
+                path.display()
+            ),
+        )
     })?;
     let relative = canonical_path.strip_prefix(source_root).map_err(|_| {
         syn::Error::new(
             span,
-            format!("checked source is outside the crate source root: {}", path.display()),
+            format!(
+                "checked source is outside the crate source root: {}",
+                path.display()
+            ),
         )
     })?;
     Ok(LitStr::new(&normalized_relative_identity(relative), span))

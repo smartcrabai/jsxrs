@@ -166,12 +166,9 @@ fn should_reject_duplicate_lowered_rust_field_names() -> Result<(), Box<dyn std:
 }
 
 #[test]
-fn should_compile_generated_keyword_field_in_edition_2024()
--> Result<(), Box<dyn std::error::Error>> {
-    let root = std::env::temp_dir().join(format!(
-        "jsxrs_test_codegen_2024_{}",
-        std::process::id()
-    ));
+fn should_compile_generated_keyword_field_in_edition_2024() -> Result<(), Box<dyn std::error::Error>>
+{
+    let root = std::env::temp_dir().join(format!("jsxrs_test_codegen_2024_{}", std::process::id()));
     let source_dir = root.join("src");
     fs::create_dir_all(&source_dir)?;
     let tsx_path = fixtures_dir().join("codegen_gen.tsx");
@@ -185,6 +182,10 @@ fn should_compile_generated_keyword_field_in_edition_2024()
     fs::write(
         root.join("Cargo.toml"),
         "[package]\nname = \"jsxrs_codegen_2024\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = \"1\"\n",
+    )?;
+    fs::copy(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.lock"),
+        root.join("Cargo.lock"),
     )?;
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let result = Command::new(cargo)

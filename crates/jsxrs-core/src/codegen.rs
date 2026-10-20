@@ -65,7 +65,7 @@ fn write_struct(output: &mut String, interface: &TsInterfaceDecl) -> Result<(), 
                 None => "serde_json::Value".to_owned(),
             };
             let (rust_name, rust_type) =
-                lower_rust_field(&field_name, field_index, &base_type, property.optional);
+                lower_rust_field(field_name, field_index, &base_type, property.optional);
             if !rust_names.insert(rust_name.clone()) {
                 return Err(JsxrsError::Unsupported(format!(
                     "duplicate Rust field `{rust_name}` in interface {name}"
@@ -81,6 +81,7 @@ fn write_struct(output: &mut String, interface: &TsInterfaceDecl) -> Result<(), 
 }
 
 /// Lower a TypeScript field name and base Rust type for generated Rust props.
+#[must_use]
 pub fn lower_rust_field(
     name: &str,
     index: usize,
@@ -88,21 +89,16 @@ pub fn lower_rust_field(
     optional: bool,
 ) -> (String, String) {
     const KEYWORDS: &[&str] = &[
-        "abstract", "as", "async", "await", "become", "box", "break", "const", "continue",
-        "crate", "do", "dyn", "else", "enum", "extern", "false", "final", "fn", "for",
-        "gen", "if", "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut",
-        "override", "priv", "pub", "ref", "return", "self", "Self", "static", "struct",
-        "super", "trait", "true", "try", "type", "typeof", "union", "unsafe", "unsized",
-        "use", "virtual", "where", "while", "yield",
+        "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "crate",
+        "do", "dyn", "else", "enum", "extern", "false", "final", "fn", "for", "gen", "if", "impl",
+        "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv", "pub",
+        "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true", "try",
+        "type", "typeof", "union", "unsafe", "unsized", "use", "virtual", "where", "while",
+        "yield",
     ];
     let rust_name = if is_rust_identifier(name) {
         let is_keyword = KEYWORDS.contains(&name);
-        if is_keyword
-            && name != "self"
-            && name != "Self"
-            && name != "super"
-            && name != "crate"
-        {
+        if is_keyword && name != "self" && name != "Self" && name != "super" && name != "crate" {
             format!("r#{name}")
         } else if is_keyword {
             format!("field_{index}")

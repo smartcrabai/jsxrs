@@ -8,8 +8,8 @@ use swc_ecma_ast::{
 };
 use swc_ecma_visit::{Visit, VisitWith};
 
-use crate::{JsxrsError, PropsSchema, export, extract_props_schema, parse_source, resolver};
 use crate::validate::validate_component_with_source;
+use crate::{JsxrsError, PropsSchema, export, extract_props_schema, parse_source, resolver};
 
 /// Resolve and parse the complete local import closure of a component source.
 ///
@@ -48,6 +48,11 @@ pub struct ResolvedImport {
 /// `root_source`, when supplied, is the exact source text used to produce
 /// `root_module`. Passing it avoids rereading the root between parsing and graph
 /// construction.
+///
+/// # Errors
+///
+/// Returns an error for unsupported import forms, unresolved files, parse failures,
+/// missing imported component exports, or import cycles.
 pub fn resolve_component_graph_snapshot(
     root_path: &Path,
     root_module: &Module,
@@ -60,6 +65,11 @@ pub fn resolve_component_graph_snapshot(
 ///
 /// `root_source` is the exact source text used to produce `root_module`, and
 /// `root_source_map` is the source map produced by that same parse.
+///
+/// # Errors
+///
+/// Returns an error for unsupported import forms, unresolved files, parse failures,
+/// missing imported component exports, or import cycles.
 pub fn resolve_component_graph_snapshot_with_source_map(
     root_path: &Path,
     root_module: &Module,
@@ -130,12 +140,11 @@ impl GraphVisitor {
             None => std::fs::read_to_string(path)
                 .map_err(|_| JsxrsError::FileNotFound(path.to_path_buf()))?,
         };
-        let source_map = match source_map {
-            Some(source_map) => source_map,
-            None => {
-                let source_name = path.to_string_lossy().into_owned();
-                parse_source(&source, &source_name)?.1
-            }
+        let source_map = if let Some(source_map) = source_map {
+            source_map
+        } else {
+            let source_name = path.to_string_lossy().into_owned();
+            parse_source(&source, &source_name)?.1
         };
         validate_top_level_items(&module.body, path)?;
         if let Some(position) = self.visiting.iter().position(|entry| entry == path) {
@@ -162,13 +171,14 @@ impl GraphVisitor {
                     path.display()
                 ))
             })?;
-            let resolved = resolver::resolve_import(&import.specifier, parent).map_err(|error| {
-                JsxrsError::Unsupported(format!(
-                    "{}: unable to resolve import {}: {error}",
-                    path.display(),
-                    import.specifier
-                ))
-            })?;
+            let resolved =
+                resolver::resolve_import(&import.specifier, parent).map_err(|error| {
+                    JsxrsError::Unsupported(format!(
+                        "{}: unable to resolve import {}: {error}",
+                        path.display(),
+                        import.specifier
+                    ))
+                })?;
             let resolved = resolved
                 .canonicalize()
                 .map_err(|_| JsxrsError::FileNotFound(resolved.clone()))?;
@@ -178,10 +188,7 @@ impl GraphVisitor {
             let (child_module, child_source_map) = parse_source(&child_source, &source_name)?;
             if let Some(local_name) = import.component_local {
                 export::find_default_export_jsx(&child_module.body)?;
-                imported_components.insert(
-                    local_name,
-                    extract_props_schema(&child_module)?,
-                );
+                imported_components.insert(local_name, extract_props_schema(&child_module)?);
             }
             resolved_imports.push(ResolvedImport {
                 specifier: import.specifier,
@@ -236,20 +243,25 @@ fn validate_top_level_items(items: &[ModuleItem], source_path: &Path) -> Result<
             ModuleItem::ModuleDecl(ModuleDecl::ExportDecl(export)) => {
                 validate_variable_initializers(&export.decl, source_path)?;
             }
-            ModuleItem::ModuleDecl(_) => {}
+            ModuleItem::ModuleDecl(_) | ModuleItem::Stmt(Stmt::Empty(_)) => {}
             ModuleItem::Stmt(Stmt::Decl(declaration)) => {
                 validate_variable_initializers(declaration, source_path)?;
             }
-            ModuleItem::Stmt(Stmt::Empty(_)) => {}
             ModuleItem::Stmt(Stmt::Expr(expression))
-                if matches!(expression.expr.as_ref(), swc_ecma_ast::Expr::Lit(swc_ecma_ast::Lit::Str(_))) => {}
-            _ => return Err(executable_top_level_error(source_path)),
+                if matches!(
+                    expression.expr.as_ref(),
+                    swc_ecma_ast::Expr::Lit(swc_ecma_ast::Lit::Str(_))
+                ) => {}
+            ModuleItem::Stmt(_) => return Err(executable_top_level_error(source_path)),
         }
     }
     Ok(())
 }
 
-fn validate_variable_initializers(declaration: &Decl, source_path: &Path) -> Result<(), JsxrsError> {
+fn validate_variable_initializers(
+    declaration: &Decl,
+    source_path: &Path,
+) -> Result<(), JsxrsError> {
     if let Decl::Class(class) = declaration
         && let Some(super_class) = &class.class.super_class
     {
@@ -278,9 +290,7 @@ fn validate_variable_initializers(declaration: &Decl, source_path: &Path) -> Res
                         || computed_key_has_executable_operation(&field.key)
                 }
                 ClassMember::PrivateProp(field) => field.is_static && field.value.is_some(),
-                ClassMember::Method(method) => {
-                    computed_key_has_executable_operation(&method.key)
-                }
+                ClassMember::Method(method) => computed_key_has_executable_operation(&method.key),
                 ClassMember::StaticBlock(_) => true,
                 _ => false,
             }) =>
@@ -339,10 +349,7 @@ impl Visit for ExecutableInitializerVisitor {
     fn visit_fn_expr(&mut self, _: &FnExpr) {}
 }
 
-fn local_imports(
-    items: &[ModuleItem],
-    source_path: &Path,
-) -> Result<Vec<LocalImport>, JsxrsError> {
+fn local_imports(items: &[ModuleItem], source_path: &Path) -> Result<Vec<LocalImport>, JsxrsError> {
     let mut imports = Vec::new();
     for item in items {
         let ModuleItem::ModuleDecl(declaration) = item else {

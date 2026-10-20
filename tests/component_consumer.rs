@@ -6,8 +6,8 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
-fn checked_component_and_routes_survive_relocation_and_fail_closed_on_drift()
--> Result<(), Box<dyn std::error::Error>> {
+fn checked_component_and_routes_survive_relocation_and_fail_closed_on_drift() -> ConsumerTestResult
+{
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
     let root = std::env::temp_dir().join(format!(
@@ -18,20 +18,65 @@ fn checked_component_and_routes_survive_relocation_and_fail_closed_on_drift()
     let consumer = root.join("consumer");
     let relocated = root.join("relocated-source");
     let binary_dir = root.join("relocated-bin");
+    let target = root.join("target");
     let checked_binary = format!("jsxrs_checked_consumer{}", std::env::consts::EXE_SUFFIX);
+    fs::create_dir_all(&relocated)?;
+    fs::create_dir_all(&binary_dir)?;
+    create_checked_consumer(&repository, &consumer)?;
+
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    build_consumer(
+        &cargo,
+        &consumer,
+        &target,
+        "isolated consumer failed to build",
+    )?;
+    let executable =
+        relocate_and_check_drift(&consumer, &relocated, &binary_dir, &target, &checked_binary)?;
+    rebuild_after_source_change(
+        &cargo,
+        &consumer,
+        &binary_dir,
+        &target,
+        &checked_binary,
+        &executable,
+    )?;
+    rebuild_after_new_route(
+        &cargo,
+        &consumer,
+        &binary_dir,
+        &target,
+        &checked_binary,
+        &executable,
+    )?;
+
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+type ConsumerTestResult = Result<(), Box<dyn std::error::Error>>;
+
+fn create_checked_consumer(repository: &Path, consumer: &Path) -> ConsumerTestResult {
     fs::create_dir_all(consumer.join("src"))?;
     fs::create_dir_all(consumer.join("components"))?;
     fs::create_dir_all(consumer.join("app"))?;
-    fs::create_dir_all(&relocated)?;
-    fs::create_dir_all(&binary_dir)?;
+    fs::copy(repository.join("Cargo.lock"), consumer.join("Cargo.lock"))?;
+    write_checked_consumer_manifest(repository, consumer)?;
+    write_checked_consumer_sources(consumer)
+}
 
-    let jsxrs_path = toml_string_path(&repository);
+fn write_checked_consumer_manifest(repository: &Path, consumer: &Path) -> ConsumerTestResult {
+    let jsxrs_path = toml_string_path(repository);
     fs::write(
         consumer.join("Cargo.toml"),
         format!(
             "[package]\nname = \"jsxrs_checked_consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\njsxrs = {{ path = \"{jsxrs_path}\", features = [\"axum\"] }}\naxum = \"=0.8.9\"\naxum-test = \"=21.1.0\"\ntokio = {{ version = \"=1.53.3\", features = [\"full\"] }}\n"
         ),
     )?;
+    Ok(())
+}
+
+fn write_checked_consumer_sources(consumer: &Path) -> ConsumerTestResult {
     fs::write(
         consumer.join("profile.tsx"),
         "import Card from './components/card';\nimport OptionalChild from './components/optional';\nexport interface ProfileProps { name: string; }\nexport default function Profile(props: ProfileProps) { return <div><h1>Hello {props.name}</h1><Card /><OptionalChild /></div>; }\n",
@@ -106,24 +151,70 @@ fn checked_component_and_routes_survive_relocation_and_fail_closed_on_drift()
              Ok(())\n\
          }\n",
     )?;
+    Ok(())
+}
 
-    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let build = Command::new(&cargo)
+fn build_consumer(
+    cargo: &std::ffi::OsStr,
+    consumer: &Path,
+    target: &Path,
+    failure_message: &str,
+) -> ConsumerTestResult {
+    let build = Command::new(cargo)
         .arg("build")
         .arg("--offline")
         .arg("--quiet")
         .arg("--manifest-path")
         .arg(consumer.join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target"))
-        .current_dir(&consumer)
+        .env("CARGO_TARGET_DIR", target)
+        .current_dir(consumer)
         .output()?;
     assert!(
         build.status.success(),
-        "isolated consumer failed to build; stdout: {}; stderr: {}",
+        "{failure_message}; stdout: {}; stderr: {}",
         String::from_utf8_lossy(&build.stdout),
         String::from_utf8_lossy(&build.stderr)
     );
+    Ok(())
+}
 
+fn copy_consumer_binary(target: &Path, binary_dir: &Path, binary_name: &str) -> ConsumerTestResult {
+    fs::copy(
+        target.join("debug").join(binary_name),
+        binary_dir.join(binary_name),
+    )?;
+    Ok(())
+}
+
+fn assert_consumer_runs(
+    executable: &Path,
+    source_root: &Path,
+    binary_dir: &Path,
+    mode: Option<&str>,
+    failure_message: &str,
+) -> ConsumerTestResult {
+    let mut command = Command::new(executable);
+    command.arg(source_root).current_dir(binary_dir);
+    if let Some(mode) = mode {
+        command.arg(mode);
+    }
+    let run = command.output()?;
+    assert!(
+        run.status.success(),
+        "{failure_message}; stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&run.stdout),
+        String::from_utf8_lossy(&run.stderr)
+    );
+    Ok(())
+}
+
+fn relocate_and_check_drift(
+    consumer: &Path,
+    relocated: &Path,
+    binary_dir: &Path,
+    target: &Path,
+    binary_name: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
     for relative in [
         "profile.tsx",
         "alias.tsx",
@@ -138,10 +229,7 @@ fn checked_component_and_routes_survive_relocation_and_fail_closed_on_drift()
         }
         fs::copy(consumer.join(relative), destination)?;
     }
-    fs::copy(
-        root.join("target/debug").join(&checked_binary),
-        binary_dir.join(&checked_binary),
-    )?;
+    copy_consumer_binary(target, binary_dir, binary_name)?;
 
     // This higher-priority candidate was absent during checking. The checked
     // import must remain pinned to card.jsx after relocation.
@@ -149,69 +237,64 @@ fn checked_component_and_routes_survive_relocation_and_fail_closed_on_drift()
         relocated.join("components/card.tsx"),
         "export default function Card() { return <strong>unvalidated candidate</strong>; }\n",
     )?;
-    let executable = binary_dir.join(&checked_binary);
-    let relocated_run = Command::new(&executable)
-        .arg(&relocated)
-        .current_dir(&binary_dir)
-        .output()?;
-    assert!(
-        relocated_run.status.success(),
-        "relocated consumer failed; stdout: {}; stderr: {}",
-        String::from_utf8_lossy(&relocated_run.stdout),
-        String::from_utf8_lossy(&relocated_run.stderr)
-    );
-
+    let executable = binary_dir.join(binary_name);
+    assert_consumer_runs(
+        &executable,
+        relocated,
+        binary_dir,
+        None,
+        "relocated consumer failed",
+    )?;
     fs::write(
         relocated.join("components/card.jsx"),
         "export default function Card() { return <strong>drifted source</strong>; }\n",
     )?;
-    let drift_run = Command::new(&executable)
-        .arg(&relocated)
-        .arg("drift")
-        .current_dir(&binary_dir)
-        .output()?;
-    assert!(
-        drift_run.status.success(),
-        "consumer did not reject source drift as expected; stdout: {}; stderr: {}",
-        String::from_utf8_lossy(&drift_run.stdout),
-        String::from_utf8_lossy(&drift_run.stderr)
-    );
+    assert_consumer_runs(
+        &executable,
+        relocated,
+        binary_dir,
+        Some("drift"),
+        "consumer did not reject source drift as expected",
+    )?;
+    Ok(executable)
+}
 
+fn rebuild_after_source_change(
+    cargo: &std::ffi::OsStr,
+    consumer: &Path,
+    binary_dir: &Path,
+    target: &Path,
+    binary_name: &str,
+    executable: &Path,
+) -> ConsumerTestResult {
     fs::write(
         consumer.join("components/card.jsx"),
         "export default function Card() { return <strong>rebuilt card</strong>; }\n",
     )?;
-    let source_rebuild = Command::new(&cargo)
-        .arg("build")
-        .arg("--offline")
-        .arg("--quiet")
-        .arg("--manifest-path")
-        .arg(consumer.join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target"))
-        .current_dir(&consumer)
-        .output()?;
-    assert!(
-        source_rebuild.status.success(),
-        "isolated consumer failed to rebuild after source change; stdout: {}; stderr: {}",
-        String::from_utf8_lossy(&source_rebuild.stdout),
-        String::from_utf8_lossy(&source_rebuild.stderr)
-    );
-    fs::copy(
-        root.join("target/debug").join(&checked_binary),
-        binary_dir.join(&checked_binary),
+    build_consumer(
+        cargo,
+        consumer,
+        target,
+        "isolated consumer failed to rebuild after source change",
     )?;
-    let source_changed_run = Command::new(&executable)
-        .arg(&consumer)
-        .arg("source_changed")
-        .current_dir(&binary_dir)
-        .output()?;
-    assert!(
-        source_changed_run.status.success(),
-        "rebuilt consumer did not render updated checked sources; stdout: {}; stderr: {}",
-        String::from_utf8_lossy(&source_changed_run.stdout),
-        String::from_utf8_lossy(&source_changed_run.stderr)
-    );
+    copy_consumer_binary(target, binary_dir, binary_name)?;
+    assert_consumer_runs(
+        executable,
+        consumer,
+        binary_dir,
+        Some("source_changed"),
+        "rebuilt consumer did not render updated checked sources",
+    )
+}
 
+fn rebuild_after_new_route(
+    cargo: &std::ffi::OsStr,
+    consumer: &Path,
+    binary_dir: &Path,
+    target: &Path,
+    binary_name: &str,
+    executable: &Path,
+) -> ConsumerTestResult {
     fs::create_dir_all(consumer.join("app/new"))?;
     fs::write(
         consumer.join("app/new/page.tsx"),
@@ -221,39 +304,20 @@ fn checked_component_and_routes_survive_relocation_and_fail_closed_on_drift()
     let mut main_source = fs::read_to_string(&main_path)?;
     main_source.push_str("\n// Re-expand routes after adding a page fixture.\n");
     fs::write(main_path, main_source)?;
-    let route_rebuild = Command::new(&cargo)
-        .arg("build")
-        .arg("--offline")
-        .arg("--quiet")
-        .arg("--manifest-path")
-        .arg(consumer.join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target"))
-        .current_dir(&consumer)
-        .output()?;
-    assert!(
-        route_rebuild.status.success(),
-        "isolated consumer failed to rebuild after adding a route; stdout: {}; stderr: {}",
-        String::from_utf8_lossy(&route_rebuild.stdout),
-        String::from_utf8_lossy(&route_rebuild.stderr)
-    );
-    fs::copy(
-        root.join("target/debug").join(&checked_binary),
-        binary_dir.join(&checked_binary),
+    build_consumer(
+        cargo,
+        consumer,
+        target,
+        "isolated consumer failed to rebuild after adding a route",
     )?;
-    let new_route_run = Command::new(&executable)
-        .arg(&consumer)
-        .arg("new_route")
-        .current_dir(&binary_dir)
-        .output()?;
-    assert!(
-        new_route_run.status.success(),
-        "rebuilt consumer did not render the new route; stdout: {}; stderr: {}",
-        String::from_utf8_lossy(&new_route_run.stdout),
-        String::from_utf8_lossy(&new_route_run.stderr)
-    );
-    let cleanup = fs::remove_dir_all(&root);
-    cleanup?;
-    Ok(())
+    copy_consumer_binary(target, binary_dir, binary_name)?;
+    assert_consumer_runs(
+        executable,
+        consumer,
+        binary_dir,
+        Some("new_route"),
+        "rebuilt consumer did not render the new route",
+    )
 }
 
 #[test]
@@ -269,6 +333,7 @@ fn checked_component_and_routes_default_to_consumer_root_outside_consumer_cwd()
     let consumer = root.join("consumer");
     fs::create_dir_all(consumer.join("src"))?;
     fs::create_dir_all(consumer.join("app"))?;
+    fs::copy(repository.join("Cargo.lock"), consumer.join("Cargo.lock"))?;
 
     fs::write(
         consumer.join("Cargo.toml"),
@@ -319,7 +384,10 @@ fn checked_component_and_routes_default_to_consumer_root_outside_consumer_cwd()
         String::from_utf8_lossy(&build.stderr)
     );
 
-    let default_binary = format!("jsxrs_default_root_consumer{}", std::env::consts::EXE_SUFFIX);
+    let default_binary = format!(
+        "jsxrs_default_root_consumer{}",
+        std::env::consts::EXE_SUFFIX
+    );
     let run = Command::new(root.join("target/debug").join(default_binary))
         .current_dir(&root)
         .output()?;

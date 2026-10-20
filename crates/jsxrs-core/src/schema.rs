@@ -155,7 +155,7 @@ fn annotation_for_pat_refs<'a>(
         .map(|annotation| &*annotation.type_ann))
 }
 
-fn collect_type_declarations<'a>(module: &'a Module) -> HashMap<&'a str, TypeDecl<'a>> {
+fn collect_type_declarations(module: &Module) -> HashMap<&str, TypeDecl<'_>> {
     let mut declarations = HashMap::new();
     for item in &module.body {
         let declaration = match item {
@@ -485,7 +485,9 @@ mod tests {
              export default function Page(props: Props) { return <p>{props.value}</p>; }",
         )
         .err()
-        .ok_or_else(|| JsxrsError::Unsupported("expected conflicting props fields to fail".into()))?;
+        .ok_or_else(|| {
+            JsxrsError::Unsupported("expected conflicting props fields to fail".into())
+        })?;
 
         assert!(matches!(
             error,

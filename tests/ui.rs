@@ -8,25 +8,23 @@ use std::time::{SystemTime, UNIX_EPOCH};
 fn public_macro_ui_fixtures_match_their_contracts() -> Result<(), Box<dyn Error>> {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-    let root = std::env::temp_dir().join(format!(
-        "jsxrs_ui_{}_{}",
-        std::process::id(),
-        nanos
-    ));
+    let root = std::env::temp_dir().join(format!("jsxrs_ui_{}_{}", std::process::id(), nanos));
     let consumer = root.join("consumer");
     fs::create_dir_all(consumer.join("src"))?;
-    copy_dir_all(&repository.join("tests/fixtures/ui"), &consumer.join("tests/fixtures/ui"))?;
-
-    let jsxrs_path = repository.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"");
-    fs::write(
-        consumer.join("Cargo.toml"),
-        format!(
-            "[package]\nname = \"jsxrs_ui_consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\njsxrs = {{ path = \"{jsxrs_path}\", features = [\"axum\"] }}\n"
-        ),
+    fs::copy(repository.join("Cargo.lock"), consumer.join("Cargo.lock"))?;
+    copy_dir_all(
+        &repository.join("tests/fixtures/ui"),
+        &consumer.join("tests/fixtures/ui"),
     )?;
+
+    let jsxrs_path = repository
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
 
     let target = root.join("target");
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let mut fixture_index = 0;
     for (directory, should_pass) in [("pass", true), ("fail", false)] {
         let fixtures = repository.join("tests/ui").join(directory);
         let mut entries = fs::read_dir(fixtures)?.collect::<Result<Vec<_>, _>>()?;
@@ -36,18 +34,31 @@ fn public_macro_ui_fixtures_match_their_contracts() -> Result<(), Box<dyn Error>
             if path.extension().is_none_or(|extension| extension != "rs") {
                 continue;
             }
-            fs::copy(&path, consumer.join("src/main.rs"))?;
+            let binary_name = format!("fixture_{fixture_index}");
+            fixture_index += 1;
+            let source_name = format!("{binary_name}.rs");
+            fs::copy(&path, consumer.join("src").join(&source_name))?;
+            fs::write(
+                consumer.join("Cargo.toml"),
+                format!(
+                    "[package]\nname = \"jsxrs_ui_consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\nautobins = false\n\n[dependencies]\njsxrs = {{ path = \"{jsxrs_path}\", features = [\"axum\"] }}\n\n[[bin]]\nname = \"{binary_name}\"\npath = \"src/{source_name}\"\n"
+                ),
+            )?;
             let result = Command::new(&cargo)
                 .arg("check")
                 .arg("--offline")
                 .arg("--quiet")
                 .arg("--manifest-path")
                 .arg(consumer.join("Cargo.toml"))
+                .arg("--bin")
+                .arg(&binary_name)
                 .env("CARGO_TARGET_DIR", &target)
                 .current_dir(&consumer)
                 .output()?;
             let stderr = String::from_utf8_lossy(&result.stderr);
-            let case = path.file_stem().map_or_else(String::new, |stem| stem.to_string_lossy().into_owned());
+            let case = path
+                .file_stem()
+                .map_or_else(String::new, |stem| stem.to_string_lossy().into_owned());
             if should_pass {
                 assert!(
                     result.status.success(),
@@ -75,12 +86,12 @@ fn public_macro_ui_fixtures_match_their_contracts() -> Result<(), Box<dyn Error>
 
 fn expected_diagnostic(case: &str) -> Option<&'static str> {
     match case {
-        "event_constructor_prop" | "event_function_prop" | "event_alias_prop" => Some("undefined prop"),
-        "child_unknown_prop" => Some("undefined prop"),
+        "event_constructor_prop"
+        | "event_function_prop"
+        | "event_alias_prop"
+        | "child_unknown_prop" => Some("undefined prop"),
         "child_missing_required" => Some("missing required prop"),
-        "child_text_children" | "child_jsx_children" => {
-            Some("children on imported component")
-        }
+        "child_text_children" | "child_jsx_children" => Some("children on imported component"),
         "route_page_missing_prop" => Some("page requires prop `id`"),
         "route_layout_missing_prop" => Some("layout requires prop `locale`"),
         "route_page_optional_access" => Some("page accesses prop `locale`"),
@@ -91,9 +102,7 @@ fn expected_diagnostic(case: &str) -> Option<&'static str> {
         | "class_static_initializer"
         | "class_super_initializer"
         | "tagged_template_initializer"
-        | "computed_class_method_key" => {
-            Some("executable top-level statements are unsupported")
-        }
+        | "computed_class_method_key" => Some("executable top-level statements are unsupported"),
         "field_identifier_collision" => Some("duplicate Rust field"),
         "unknown_root_prop" => Some("unknown_root_prop.tsx:2:"),
         "imported_prop_error" => Some("diagnostic_child.tsx:2:"),

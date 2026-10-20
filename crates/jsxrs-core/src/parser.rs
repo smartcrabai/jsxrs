@@ -78,8 +78,11 @@ fn parse_errors(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_source;
+    use super::{parse_errors, parse_source};
     use crate::JsxrsError;
+    use bytes_str::BytesStr;
+    use swc_common::{BytePos, FileName, SourceMap, Span, sync::Lrc};
+    use swc_ecma_parser::error::{Error as ParserError, SyntaxError};
 
     #[test]
     fn parse_errors_include_the_source_position() -> Result<(), JsxrsError> {
@@ -95,12 +98,24 @@ mod tests {
 
     #[test]
     fn multiple_parse_errors_keep_order_and_newline_separators() -> Result<(), JsxrsError> {
-        let error = parse_source("const first = ;\nconst second = ;", "multiple.tsx")
-            .err()
-            .ok_or_else(|| JsxrsError::Unsupported("invalid TSX unexpectedly parsed".into()))?;
-        let JsxrsError::Parse(message) = error else {
+        let source = "first\nsecond";
+        let source_map: Lrc<SourceMap> = Lrc::default();
+        let source_file = source_map.new_source_file(
+            FileName::Custom("multiple.tsx".into()).into(),
+            BytesStr::from(source.to_owned()),
+        );
+        let first_position = source_file.start_pos;
+        let second_position = first_position + BytePos(6);
+        let errors = [
+            ParserError::new(
+                Span::new(second_position, second_position),
+                SyntaxError::Eof,
+            ),
+            ParserError::new(Span::new(first_position, first_position), SyntaxError::Eof),
+        ];
+        let JsxrsError::Parse(message) = parse_errors(&errors, &source_map, "multiple.tsx") else {
             return Err(JsxrsError::Unsupported(
-                "invalid TSX returned a non-parse error".into(),
+                "parser errors returned a non-parse error".into(),
             ));
         };
         let mut lines = message.lines();
@@ -110,8 +125,9 @@ mod tests {
         let second = lines
             .next()
             .ok_or_else(|| JsxrsError::Unsupported("missing second parse error".into()))?;
-        assert!(first.starts_with("multiple.tsx:1:"));
-        assert!(second.starts_with("multiple.tsx:2:"));
+        assert!(first.starts_with("multiple.tsx:2:1:"));
+        assert!(second.starts_with("multiple.tsx:1:1:"));
+        assert!(lines.next().is_none());
         assert!(!message.ends_with('\n'));
         Ok(())
     }
