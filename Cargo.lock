@@ -876,7 +876,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "swc_ecma_ast",
- "syn 2.0.119",
+ "syn 3.0.6",
 ]
 
 [[package]]
