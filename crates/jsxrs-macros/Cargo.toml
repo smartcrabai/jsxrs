@@ -10,7 +10,7 @@ version.workspace = true
 proc-macro = true
 
 [dependencies]
-jsxrs-core = { path = "../jsxrs-core", version = "0.1.5" }
+jsxrs-core = { path = "../jsxrs-core", version = "0.1.6" }
 proc-macro-crate = "3.5.0"
 proc-macro2 = "1.0"
 quote = "1.0"
