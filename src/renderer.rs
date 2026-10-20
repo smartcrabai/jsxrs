@@ -125,45 +125,43 @@ fn render_component(
     let import_path = imports
         .get(tag)
         .ok_or_else(|| JsxrsError::ImportNotFound { path: tag.into() })?;
-    let (resolved, source, component_config, component_context) =
-        if let Some(checked_sources) = checked_context.checked_sources() {
-            let importer = checked_context.source_path().ok_or_else(|| {
-                JsxrsError::Unsupported(
-                    "checked rendering has no current source identity".to_owned(),
-                )
-            })?;
-            let resolved = checked_sources.resolve_import(importer, import_path)?;
-            let source_root =
-                crate::source::runtime_source_root(checked_context.source_root())?;
-            let source = Cow::Borrowed(checked_sources.source(&resolved)?);
-            let component_config = RenderConfig {
-                base_dir: resolved
-                    .parent()
-                    .map(|parent| source_root.join(parent))
-                    .or_else(|| config.base_dir.clone()),
-                ..config.clone()
-            };
-            let component_context = checked_context.clone().with_source_path(resolved.clone());
-            (resolved, source, component_config, component_context)
-        } else {
-            let base_dir = config
-                .base_dir
-                .as_ref()
-                .ok_or(JsxrsError::BaseDirRequired)?;
-            let resolved = resolver::resolve_import(import_path, base_dir)?;
-            let source = Cow::Owned(
-                std::fs::read_to_string(&resolved)
-                    .map_err(|_| JsxrsError::FileNotFound(resolved.clone()))?,
-            );
-            let component_config = RenderConfig {
-                base_dir: resolved
-                    .parent()
-                    .map(std::path::Path::to_path_buf)
-                    .or_else(|| config.base_dir.clone()),
-                ..config.clone()
-            };
-            (resolved, source, component_config, checked_context.clone())
+    let (resolved, source, component_config, component_context) = if let Some(checked_sources) =
+        checked_context.checked_sources()
+    {
+        let importer = checked_context.source_path().ok_or_else(|| {
+            JsxrsError::Unsupported("checked rendering has no current source identity".to_owned())
+        })?;
+        let resolved = checked_sources.resolve_import(importer, import_path)?;
+        let source_root = crate::source::runtime_source_root(checked_context.source_root())?;
+        let source = Cow::Borrowed(checked_sources.source(&resolved)?);
+        let component_config = RenderConfig {
+            base_dir: resolved
+                .parent()
+                .map(|parent| source_root.join(parent))
+                .or_else(|| config.base_dir.clone()),
+            ..config.clone()
         };
+        let component_context = checked_context.clone().with_source_path(resolved.clone());
+        (resolved, source, component_config, component_context)
+    } else {
+        let base_dir = config
+            .base_dir
+            .as_ref()
+            .ok_or(JsxrsError::BaseDirRequired)?;
+        let resolved = resolver::resolve_import(import_path, base_dir)?;
+        let source = Cow::Owned(
+            std::fs::read_to_string(&resolved)
+                .map_err(|_| JsxrsError::FileNotFound(resolved.clone()))?,
+        );
+        let component_config = RenderConfig {
+            base_dir: resolved
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .or_else(|| config.base_dir.clone()),
+            ..config.clone()
+        };
+        (resolved, source, component_config, checked_context.clone())
+    };
     let fname = resolved.to_string_lossy().into_owned();
     let (module, _) = parser::parse_source(source.as_ref(), &fname)?;
 
@@ -248,7 +246,14 @@ fn render_html_tag(
     }
 
     for child in &el.children {
-        out.push_str(&render_child(child, ctx, config, checked_context, imports, state)?);
+        out.push_str(&render_child(
+            child,
+            ctx,
+            config,
+            checked_context,
+            imports,
+            state,
+        )?);
     }
     out.push_str("</");
     out.push_str(tag);
@@ -266,7 +271,14 @@ pub(crate) fn render_fragment(
 ) -> Result<String, JsxrsError> {
     let mut out = String::new();
     for child in &frag.children {
-        out.push_str(&render_child(child, ctx, config, checked_context, imports, state)?);
+        out.push_str(&render_child(
+            child,
+            ctx,
+            config,
+            checked_context,
+            imports,
+            state,
+        )?);
     }
     Ok(out)
 }

@@ -27,7 +27,10 @@ impl CheckedSourceSet {
             imports: imports
                 .into_iter()
                 .map(|(from, specifier, to)| {
-                    ((PathBuf::from(from), specifier.to_owned()), PathBuf::from(to))
+                    (
+                        (PathBuf::from(from), specifier.to_owned()),
+                        PathBuf::from(to),
+                    )
                 })
                 .collect(),
         }
@@ -68,7 +71,11 @@ impl CheckedSourceSet {
         })
     }
 
-    pub(crate) fn resolve_import(&self, from: &Path, specifier: &str) -> Result<PathBuf, JsxrsError> {
+    pub(crate) fn resolve_import(
+        &self,
+        from: &Path,
+        specifier: &str,
+    ) -> Result<PathBuf, JsxrsError> {
         self.imports
             .get(&(from.to_path_buf(), specifier.to_owned()))
             .cloned()
@@ -139,7 +146,8 @@ mod tests {
     }
 
     #[test]
-    fn relative_source_root_is_joined_to_current_directory() -> Result<(), Box<dyn std::error::Error>> {
+    fn relative_source_root_is_joined_to_current_directory()
+    -> Result<(), Box<dyn std::error::Error>> {
         let current_dir = std::env::current_dir()?;
         let relative = Path::new("configured-root");
         assert_eq!(

@@ -68,8 +68,7 @@ fn render_string_with_context(
     }
 
     let (module, _cm) = parser::parse_source(source, file_name)?;
-    let (body_html, state) =
-        renderer::render_module(&module.body, props, config, checked_context)?;
+    let (body_html, state) = renderer::render_module(&module.body, props, config, checked_context)?;
 
     if config.fragment {
         return Ok(body_html);

@@ -24,12 +24,8 @@ pub fn render_with_layouts(
     };
 
     // Render the page itself
-    let mut html = crate::render_file_with_context(
-        page_file,
-        props,
-        &fragment_config,
-        checked_context,
-    )?;
+    let mut html =
+        crate::render_file_with_context(page_file, props, &fragment_config, checked_context)?;
 
     // Apply layouts from innermost to outermost
     for layout_path in layouts.iter().rev() {
