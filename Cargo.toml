@@ -1,9 +1,36 @@
-[package]
-description = "A Rust library for rendering JSX/TSX to complete HTML documents at build-time or server-side."
+[workspace]
+default-members = [".", "crates/jsxrs-core", "crates/jsxrs-macros"]
+members = [".", "crates/jsxrs-core", "crates/jsxrs-macros"]
+resolver = "3"
+
+[workspace.package]
 edition = "2024"
 license = "Apache-2.0"
-name = "jsxrs"
 version = "0.1.5"
+
+[workspace.dependencies]
+bytes-str = "0.2.7"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+swc_common = "26.0.0"
+swc_ecma_ast = "29.0.0"
+swc_ecma_parser = "45.0.0"
+swc_ecma_visit = "29.0.0"
+thiserror = "2.0.18"
+
+[workspace.lints.clippy]
+allow_attributes = "deny"
+dbg_macro = "deny"
+expect_used = "deny"
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+
+[package]
+description = "A Rust library for rendering JSX/TSX to complete HTML documents at build-time or server-side."
+edition.workspace = true
+license.workspace = true
+name = "jsxrs"
+version.workspace = true
 
 [features]
 axum = ["dep:axum", "dep:tokio"]
@@ -11,14 +38,16 @@ default = []
 
 [dependencies]
 axum = { version = "0.8", optional = true }
-bytes-str = "0.2.7"
+bytes-str.workspace = true
 encre-css = "0.21.0"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-swc_common = "26.0.0"
-swc_ecma_ast = "29.0.0"
-swc_ecma_parser = "45.0.0"
-thiserror = "2.0.18"
+jsxrs-core = { path = "crates/jsxrs-core", version = "0.1.5" }
+jsxrs-macros = { path = "crates/jsxrs-macros", version = "0.1.5" }
+serde.workspace = true
+serde_json.workspace = true
+swc_common.workspace = true
+swc_ecma_ast.workspace = true
+swc_ecma_parser.workspace = true
+thiserror.workspace = true
 tokio = { version = "1", features = ["rt"], optional = true }
 
 [dev-dependencies]
@@ -27,19 +56,15 @@ axum-test = "=21.1.0"
 tokio = { version = "=1.53.3", features = ["full"] }
 
 
-[lints.clippy]
-allow_attributes = "deny"
-dbg_macro = "deny"
-expect_used = "deny"
-pedantic = { level = "warn", priority = -1 }
-unwrap_used = "deny"
+[lints]
+workspace = true
 
 [profile.release]
 codegen-units = 1
 lto = true
 strip = true
 
-[package.metadata.dist]
+[workspace.metadata.dist]
 cargo-dist-version = "0.31.0"
 ci = "github"
 install-path = "CARGO_HOME"

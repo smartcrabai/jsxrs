@@ -1,0 +1,21 @@
+[package]
+description = "Compile-time component and route macros for jsxrs."
+edition.workspace = true
+license.workspace = true
+name = "jsxrs-macros"
+readme = "README.md"
+version.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+jsxrs-core = { path = "../jsxrs-core", version = "0.1.5" }
+proc-macro-crate = "3.5.0"
+proc-macro2 = "1.0"
+quote = "1.0"
+swc_ecma_ast.workspace = true
+syn = { version = "2.0", features = ["full"] }
+
+[lints]
+workspace = true

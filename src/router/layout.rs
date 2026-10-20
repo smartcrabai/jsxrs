@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use crate::config::RenderConfig;
+use crate::config::{CheckedRenderContext, RenderConfig};
 use crate::error::JsxrsError;
 
 /// Render a page file wrapped with its layout chain.
@@ -15,6 +15,7 @@ pub fn render_with_layouts(
     layouts: &[PathBuf],
     props: &Value,
     config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
 ) -> Result<String, JsxrsError> {
     let fragment_config = RenderConfig {
         fragment: true,
@@ -23,7 +24,12 @@ pub fn render_with_layouts(
     };
 
     // Render the page itself
-    let mut html = crate::render_file(page_file, props, &fragment_config)?;
+    let mut html = crate::render_file_with_context(
+        page_file,
+        props,
+        &fragment_config,
+        checked_context,
+    )?;
 
     // Apply layouts from innermost to outermost
     for layout_path in layouts.iter().rev() {
@@ -35,7 +41,12 @@ pub fn render_with_layouts(
             base_dir: Some(layout_path.parent().unwrap_or(Path::new(".")).to_path_buf()),
             ..config.clone()
         };
-        html = crate::render_file(layout_path, &layout_props, &layout_config)?;
+        html = crate::render_file_with_context(
+            layout_path,
+            &layout_props,
+            &layout_config,
+            checked_context,
+        )?;
     }
 
     Ok(html)
