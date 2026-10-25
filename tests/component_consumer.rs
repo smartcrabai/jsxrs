@@ -70,7 +70,7 @@ fn write_checked_consumer_manifest(repository: &Path, consumer: &Path) -> Consum
     fs::write(
         consumer.join("Cargo.toml"),
         format!(
-            "[package]\nname = \"jsxrs_checked_consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\njsxrs = {{ path = \"{jsxrs_path}\", features = [\"axum\"] }}\naxum = \"=0.8.9\"\naxum-test = \"=21.1.0\"\ntokio = {{ version = \"=1.53.3\", features = [\"full\"] }}\n"
+            "[package]\nname = \"jsxrs_checked_consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\njsxrs = {{ path = \"{jsxrs_path}\", features = [\"axum\"] }}\naxum = \"=0.8.9\"\naxum-test = \"=21.1.0\"\ntokio = {{ version = \"=1.54.1\", features = [\"full\"] }}\n"
         ),
     )?;
     Ok(())
@@ -338,7 +338,7 @@ fn checked_component_and_routes_default_to_consumer_root_outside_consumer_cwd()
     fs::write(
         consumer.join("Cargo.toml"),
         format!(
-            "[package]\nname = \"jsxrs_default_root_consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\njsxrs = {{ path = \"{}\", features = [\"axum\"] }}\naxum = \"=0.8.9\"\naxum-test = \"=21.1.0\"\ntokio = {{ version = \"=1.53.3\", features = [\"full\"] }}\n",
+            "[package]\nname = \"jsxrs_default_root_consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\njsxrs = {{ path = \"{}\", features = [\"axum\"] }}\naxum = \"=0.8.9\"\naxum-test = \"=21.1.0\"\ntokio = {{ version = \"=1.54.1\", features = [\"full\"] }}\n",
             toml_string_path(&repository)
         ),
     )?;
