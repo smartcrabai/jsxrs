@@ -21,6 +21,9 @@ const REACT_TO_HTML: &[(&str, &str)] = &[
     ("autoComplete", "autocomplete"),
     ("autoFocus", "autofocus"),
     ("autoPlay", "autoplay"),
+    ("contentEditable", "contenteditable"),
+    ("spellCheck", "spellcheck"),
+    ("isMap", "ismap"),
 ];
 
 fn map_attr_name(name: &str) -> &str {
@@ -30,6 +33,57 @@ fn map_attr_name(name: &str) -> &str {
         }
     }
     name
+}
+
+fn is_boolean_attribute(name: &str) -> bool {
+    matches!(
+        name,
+        "allowFullScreen"
+            | "async"
+            | "autoFocus"
+            | "autoPlay"
+            | "capture"
+            | "checked"
+            | "controls"
+            | "default"
+            | "defer"
+            | "disabled"
+            | "disablePictureInPicture"
+            | "disableRemotePlayback"
+            | "download"
+            | "formNoValidate"
+            | "hidden"
+            | "inert"
+            | "itemScope"
+            | "isMap"
+            | "loop"
+            | "multiple"
+            | "muted"
+            | "noModule"
+            | "noValidate"
+            | "open"
+            | "playsInline"
+            | "readOnly"
+            | "required"
+            | "reversed"
+            | "scoped"
+            | "seamless"
+            | "selected"
+    )
+}
+
+fn is_booleanish_attribute(name: &str) -> bool {
+    matches!(
+        name,
+        "autoReverse"
+            | "contentEditable"
+            | "draggable"
+            | "externalResourcesRequired"
+            | "focusable"
+            | "preserveAlpha"
+            | "spellCheck"
+            | "value"
+    )
 }
 
 fn is_event_handler(name: &str) -> bool {
@@ -148,10 +202,12 @@ fn render_expr_attr(
         Err(err) => return Err(err),
     };
     let value = match val {
-        serde_json::Value::Null => return Ok(None),
-        serde_json::Value::Bool(true) if !is_data_or_aria => None,
-        serde_json::Value::Bool(false) if !is_data_or_aria => return Ok(None),
-        serde_json::Value::Bool(value) => Some(value.to_string()),
+        serde_json::Value::Bool(value) if is_data_or_aria || is_booleanish_attribute(raw_name) => {
+            Some(value.to_string())
+        }
+        serde_json::Value::Bool(true) if is_boolean_attribute(raw_name) => None,
+        serde_json::Value::Bool(false) if is_boolean_attribute(raw_name) => return Ok(None),
+        serde_json::Value::Null | serde_json::Value::Bool(_) => return Ok(None),
         value => Some(eval::value_to_string(&value)),
     };
     Ok(Some(RenderedAttr {
