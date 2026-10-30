@@ -160,6 +160,7 @@ fn access_value(obj: &Value, key: &str) -> Result<Value, JsxrsError> {
             Some(v) => Ok(v.clone()),
             None => Err(JsxrsError::UndefinedProp(key.into())),
         },
+        Value::Array(arr) if key == "length" => Ok(Value::Number((arr.len() as u64).into())),
         Value::Array(arr) => {
             if let Ok(idx) = key.parse::<usize>() {
                 arr.get(idx)
@@ -168,6 +169,9 @@ fn access_value(obj: &Value, key: &str) -> Result<Value, JsxrsError> {
             } else {
                 Err(JsxrsError::UndefinedProp(key.into()))
             }
+        }
+        Value::String(value) if key == "length" => {
+            Ok(Value::Number((value.encode_utf16().count() as u64).into()))
         }
         _ => Err(JsxrsError::UndefinedProp(key.into())),
     }

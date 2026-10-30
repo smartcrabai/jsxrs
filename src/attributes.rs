@@ -21,6 +21,9 @@ const REACT_TO_HTML: &[(&str, &str)] = &[
     ("autoComplete", "autocomplete"),
     ("autoFocus", "autofocus"),
     ("autoPlay", "autoplay"),
+    ("contentEditable", "contenteditable"),
+    ("spellCheck", "spellcheck"),
+    ("isMap", "ismap"),
 ];
 
 fn map_attr_name(name: &str) -> &str {
@@ -30,6 +33,57 @@ fn map_attr_name(name: &str) -> &str {
         }
     }
     name
+}
+
+fn is_boolean_attribute(name: &str) -> bool {
+    matches!(
+        name,
+        "allowFullScreen"
+            | "async"
+            | "autoFocus"
+            | "autoPlay"
+            | "capture"
+            | "checked"
+            | "controls"
+            | "default"
+            | "defer"
+            | "disabled"
+            | "disablePictureInPicture"
+            | "disableRemotePlayback"
+            | "download"
+            | "formNoValidate"
+            | "hidden"
+            | "inert"
+            | "itemScope"
+            | "isMap"
+            | "loop"
+            | "multiple"
+            | "muted"
+            | "noModule"
+            | "noValidate"
+            | "open"
+            | "playsInline"
+            | "readOnly"
+            | "required"
+            | "reversed"
+            | "scoped"
+            | "seamless"
+            | "selected"
+    )
+}
+
+fn is_booleanish_attribute(name: &str) -> bool {
+    matches!(
+        name,
+        "autoReverse"
+            | "contentEditable"
+            | "draggable"
+            | "externalResourcesRequired"
+            | "focusable"
+            | "preserveAlpha"
+            | "spellCheck"
+            | "value"
+    )
 }
 
 fn is_event_handler(name: &str) -> bool {
@@ -78,8 +132,7 @@ pub struct RenderedAttr {
     pub value: Option<String>,
 }
 
-/// Render a single JSX attribute to its HTML form.
-/// Returns `None` if the attribute should be excluded (event handlers, false booleans).
+/// Renders a JSX attribute to HTML, omitting event handlers and false/null/undefined values.
 pub fn render_jsx_attr(
     attr: &JSXAttrOrSpread,
     ctx: &EvalContext,
@@ -133,33 +186,33 @@ fn render_expr_attr(
         swc_ecma_ast::JSXExpr::Expr(e) => e,
         swc_ecma_ast::JSXExpr::JSXEmptyExpr(_) => return Ok(None),
     };
-
     if raw_name == "style"
         && let Expr::Object(obj) = expr.as_ref()
     {
-        let css = render_style_object(obj);
         return Ok(Some(RenderedAttr {
             name: html_name.to_string(),
-            value: Some(css),
+            value: Some(render_style_object(obj)),
         }));
     }
 
-    if let Expr::Lit(Lit::Bool(b)) = expr.as_ref() {
-        return if b.value {
-            Ok(Some(RenderedAttr {
-                name: html_name.to_string(),
-                value: None,
-            }))
-        } else {
-            Ok(None)
-        };
-    }
-
-    let val = eval::eval_expr(expr, ctx)?;
-    let s = eval::value_to_string(&val);
+    let is_data_or_aria = raw_name.starts_with("data-") || raw_name.starts_with("aria-");
+    let val = match eval::eval_expr(expr, ctx) {
+        Ok(val) => val,
+        Err(JsxrsError::UndefinedProp(_)) => return Ok(None),
+        Err(err) => return Err(err),
+    };
+    let value = match val {
+        serde_json::Value::Bool(value) if is_data_or_aria || is_booleanish_attribute(raw_name) => {
+            Some(value.to_string())
+        }
+        serde_json::Value::Bool(true) if is_boolean_attribute(raw_name) => None,
+        serde_json::Value::Bool(false) if is_boolean_attribute(raw_name) => return Ok(None),
+        serde_json::Value::Null | serde_json::Value::Bool(_) => return Ok(None),
+        value => Some(eval::value_to_string(&value)),
+    };
     Ok(Some(RenderedAttr {
         name: html_name.to_string(),
-        value: Some(s),
+        value,
     }))
 }
 

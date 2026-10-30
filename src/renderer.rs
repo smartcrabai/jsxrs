@@ -3,8 +3,8 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 use swc_ecma_ast::{
-    Expr, JSXAttrOrSpread, JSXAttrValue, JSXElement, JSXElementChild, JSXElementName, JSXExpr,
-    JSXExprContainer, JSXFragment, ModuleItem,
+    BinaryOp, Expr, JSXAttrOrSpread, JSXAttrValue, JSXElement, JSXElementChild, JSXElementName,
+    JSXExpr, JSXExprContainer, JSXFragment, ModuleItem,
 };
 
 use crate::attributes;
@@ -74,17 +74,40 @@ pub(crate) fn render_expr(
     match expr {
         Expr::JSXElement(el) => render_element(el, ctx, config, checked_context, imports, state),
         Expr::JSXFragment(f) => render_fragment(f, ctx, config, checked_context, imports, state),
+        Expr::Cond(cond) => {
+            let condition = eval::eval_expr(&cond.test, ctx)?;
+            let branch = if eval::is_truthy(&condition) {
+                &cond.cons
+            } else {
+                &cond.alt
+            };
+            render_expr(branch, ctx, config, checked_context, imports, state)
+        }
+        Expr::Bin(bin) if bin.op == BinaryOp::LogicalAnd => {
+            let left = eval::eval_expr(&bin.left, ctx)?;
+            if eval::is_truthy(&left) {
+                render_expr(&bin.right, ctx, config, checked_context, imports, state)
+            } else {
+                Ok(render_value(&left))
+            }
+        }
         Expr::Paren(p) => render_expr(&p.expr, ctx, config, checked_context, imports, state),
         _ => {
             let val = eval::eval_expr(expr, ctx)?;
-            if let Some(raw) = eval::extract_raw_html(&val) {
-                return Ok(raw.to_owned());
-            }
-            Ok(escape::escape_html(&eval::value_to_string(&val)))
+            Ok(render_value(&val))
         }
     }
 }
 
+fn render_value(val: &Value) -> String {
+    if matches!(val, Value::Null | Value::Bool(_)) {
+        return String::new();
+    }
+    if let Some(raw) = eval::extract_raw_html(val) {
+        return raw.to_owned();
+    }
+    escape::escape_html(&eval::value_to_string(val))
+}
 pub(crate) fn render_element(
     el: &JSXElement,
     ctx: &EvalContext,
