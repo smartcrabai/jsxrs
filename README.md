@@ -402,6 +402,8 @@ Elements that can be added to the document head:
 - JSX Fragments (`<>...</>`)
 - Props and expressions (`{props.value}`, `{1 + 1}`)
 - Dynamic attribute booleans follow React semantics: HTML boolean attributes render bare when true and are omitted when false; booleanish attributes such as `contentEditable`, `draggable`, `spellCheck`, and `value`, plus `data-*`/`aria-*`, render booleans as strings. `null`, `undefined`, and boolean values for other attributes are omitted.
+- Top-level conditional and logical-and JSX returns
+- Array and string `.length` access in prop expressions
 - Type annotations in TSX files
 - Arrow function and function declarations
 - Component composition

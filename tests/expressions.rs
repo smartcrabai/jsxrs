@@ -47,6 +47,125 @@ fn should_resolve_nested_member_access_when_given_deep_prop()
     Ok(())
 }
 
+#[test]
+fn should_render_array_length_prop() -> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return <span>{props.rows.length}</span>;
+}";
+    let props = json!({"rows": [1, 2]});
+
+    let result = render_string(source, "p.jsx", &props, &minimal_config())?;
+
+    assert_eq!(
+        extract_body(&result).ok_or("missing body")?,
+        "<span>2</span>"
+    );
+    Ok(())
+}
+
+#[test]
+fn should_render_string_length_prop() -> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return <span>{props.name.length}</span>;
+}";
+    let props = json!({"name": "🙂a"});
+
+    let result = render_string(source, "p.jsx", &props, &minimal_config())?;
+
+    assert_eq!(
+        extract_body(&result).ok_or("missing body")?,
+        "<span>3</span>"
+    );
+    Ok(())
+}
+
+#[test]
+fn should_render_selected_root_ternary_branch() -> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return props.visible ? <span>visible</span> : <span>hidden</span>;
+}";
+    let visible = render_string(
+        source,
+        "p.jsx",
+        &json!({"visible": true}),
+        &minimal_config(),
+    )?;
+    let hidden = render_string(
+        source,
+        "p.jsx",
+        &json!({"visible": false}),
+        &minimal_config(),
+    )?;
+
+    assert_eq!(
+        extract_body(&visible).ok_or("missing body")?,
+        "<span>visible</span>"
+    );
+    assert_eq!(
+        extract_body(&hidden).ok_or("missing body")?,
+        "<span>hidden</span>"
+    );
+    Ok(())
+}
+
+#[test]
+fn should_render_parenthesized_root_logical_and_branch() -> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return (props.visible && <span>visible</span>);
+}";
+    let visible = render_string(
+        source,
+        "p.jsx",
+        &json!({"visible": true}),
+        &minimal_config(),
+    )?;
+    let hidden = render_string(
+        source,
+        "p.jsx",
+        &json!({"visible": false}),
+        &minimal_config(),
+    )?;
+
+    assert_eq!(
+        extract_body(&visible).ok_or("missing body")?,
+        "<span>visible</span>"
+    );
+    assert_eq!(extract_body(&hidden).ok_or("missing body")?, "");
+    Ok(())
+}
+
+#[test]
+fn should_render_false_root_ternary_branch_as_empty() -> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return props.returnFalse ? false : null;
+}";
+    let result = render_string(
+        source,
+        "p.jsx",
+        &json!({"returnFalse": true}),
+        &minimal_config(),
+    )?;
+
+    assert_eq!(extract_body(&result).ok_or("missing body")?, "");
+    Ok(())
+}
+
+#[test]
+fn should_render_true_root_ternary_branch_as_empty() -> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return props.returnTrue ? true : null;
+}";
+    let result = render_string(
+        source,
+        "p.jsx",
+        &json!({"returnTrue": true}),
+        &minimal_config(),
+    )?;
+
+    assert_eq!(extract_body(&result).ok_or("missing body")?, "");
+    Ok(())
+}
+
 // --- Ternary operator ---
 
 #[test]
