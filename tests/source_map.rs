@@ -38,6 +38,10 @@ fn render_layout_chain_resolves_components_and_merges_head_from_memory()
         &context,
     )?;
 
+    assert_eq!(html.matches("<html>").count(), 1, "{html}");
+    assert_eq!(html.matches("<head>").count(), 1, "{html}");
+    assert_eq!(html.matches("<body>").count(), 1, "{html}");
+    assert!(html.starts_with("<!DOCTYPE html><html><head>"), "{html}");
     assert!(html.contains("<title>Root</title>"), "{html}");
     assert!(html.contains("<title>Blog</title>"), "{html}");
     assert!(html.contains("<title>Page</title>"), "{html}");
@@ -54,6 +58,137 @@ fn render_layout_chain_resolves_components_and_merges_head_from_memory()
         "{html}"
     );
     Ok(())
+}
+
+#[test]
+fn merges_page_head_into_existing_root_head_and_respects_pretty_config()
+-> Result<(), Box<dyn std::error::Error>> {
+    let sources = Arc::new(SourceMap::new(vec![
+        (
+            "app/layout.tsx",
+            r#"export default function Root(props) { return <html><head><meta charset="utf-8" /></head><body>{props.children}</body></html>; }"#,
+        ),
+        (
+            "app/page.tsx",
+            r"export default function Page() { return <><Head><title>Page</title></Head><span>page</span></>; }",
+        ),
+    ]));
+    let context = CheckedRenderContext::new().with_source_map(sources);
+    let config = RenderConfig {
+        pretty: true,
+        ..RenderConfig::default()
+    };
+    let html = render_with_layouts_and_context(
+        Path::new("app/page.tsx"),
+        &[PathBuf::from("app/layout.tsx")],
+        &json!({}),
+        &config,
+        &context,
+    )?;
+    assert!(html.starts_with("<!DOCTYPE html>\n<html>"), "{html}");
+    assert_eq!(html.matches("<html>").count(), 1, "{html}");
+    assert_eq!(html.matches("<head>").count(), 1, "{html}");
+    let head = html
+        .split_once("<head>")
+        .ok_or("missing head")?
+        .1
+        .split_once("</head>")
+        .ok_or("missing head end")?
+        .0;
+    assert!(head.contains("<title>Page</title>"), "{head}");
+    assert!(head.contains(r#"<meta charset="utf-8">"#), "{head}");
+    Ok(())
+}
+
+#[test]
+fn render_layout_preserves_non_object_page_props() -> Result<(), Box<dyn std::error::Error>> {
+    let sources = Arc::new(SourceMap::new(vec![
+        (
+            "app/layout.tsx",
+            "export default function Layout(props) { return <main>{props.pageProps}:{props.children}</main>; }",
+        ),
+        (
+            "app/page.tsx",
+            "export default function Page() { return <span>page</span>; }",
+        ),
+    ]));
+    let context = CheckedRenderContext::new().with_source_map(sources);
+    let html = render_with_layouts_and_context(
+        Path::new("app/page.tsx"),
+        &[PathBuf::from("app/layout.tsx")],
+        &json!("original"),
+        &RenderConfig::default(),
+        &context,
+    )?;
+    assert!(
+        html.contains("<body><main>original:<span>page</span></main></body>"),
+        "{html}"
+    );
+    Ok(())
+}
+
+#[test]
+fn tailwind_classes_are_collected_across_page_and_layout() -> Result<(), Box<dyn std::error::Error>>
+{
+    let sources = Arc::new(SourceMap::new(vec![
+        (
+            "app/layout.tsx",
+            r#"export default function Layout(props) { return <div className="bg-blue-500">{props.children}</div>; }"#,
+        ),
+        (
+            "app/page.tsx",
+            r#"export default function Page() { return <span className="text-xl">page</span>; }"#,
+        ),
+    ]));
+    let context = CheckedRenderContext::new().with_source_map(sources);
+    let config = RenderConfig {
+        tailwind: true,
+        ..RenderConfig::default()
+    };
+    let html = render_with_layouts_and_context(
+        Path::new("app/page.tsx"),
+        &[PathBuf::from("app/layout.tsx")],
+        &json!({}),
+        &config,
+        &context,
+    )?;
+    assert_eq!(html.matches("<style>").count(), 1, "{html}");
+    let style = html
+        .split_once("<style>")
+        .ok_or("missing Tailwind style")?
+        .1
+        .split_once("</style>")
+        .ok_or("missing Tailwind style end")?
+        .0;
+    assert!(style.contains(".bg-blue-500"), "{style}");
+    assert!(style.contains(".text-xl"), "{style}");
+    Ok(())
+}
+
+#[test]
+fn in_memory_imports_reject_missing_and_escaping_paths() {
+    let missing = Arc::new(SourceMap::new(vec![(
+        "app/page.tsx",
+        r#"import Missing from "./missing"; export default function Page() { return <Missing />; }"#,
+    )]));
+    let escaping = Arc::new(SourceMap::new(vec![(
+        "app/page.tsx",
+        r#"import Escaping from "../../../outside"; export default function Page() { return <Escaping />; }"#,
+    )]));
+    let config = RenderConfig::default();
+    for sources in [missing, escaping] {
+        let context = CheckedRenderContext::new().with_source_map(sources);
+        let result = jsxrs::render_file_with_context(
+            Path::new("app/page.tsx"),
+            &json!({}),
+            &config,
+            &context,
+        );
+        match result {
+            Err(jsxrs::JsxrsError::ImportNotFound { .. }) => {}
+            other => panic!("expected ImportNotFound, got {other:?}"),
+        }
+    }
 }
 
 #[test]

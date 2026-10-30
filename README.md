@@ -343,8 +343,11 @@ pub fn render_file(
 
 ### `render_with_layouts`
 
-Renders a page with its layouts from outermost to innermost. Page and layout
-`<Head>` entries and Tailwind classes are collected into one document.
+Renders a page inside layouts supplied outermost first. `<Head>` entries and Tailwind
+classes from the page and every layout are merged into one document. If the outermost
+layout returns `<html>`, it is used as the document root.
+
+Object props are copied into each layout; non-object values are available as `props.pageProps`.
 
 ```rust
 pub fn render_with_layouts(

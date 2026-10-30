@@ -100,8 +100,11 @@ pub fn render_file(
 
 /// Render a page with its layouts, from the outermost path to the innermost.
 ///
-/// Layouts receive the page props and `children`, containing the already-rendered inner HTML.
+/// Object props are copied into each layout; a non-object value is available as
+/// `props.pageProps`. The `children` prop contains the already-rendered inner HTML.
 /// Head content and Tailwind classes are collected across the entire chain.
+/// A root layout returning `<html>` is the document root.
+/// Collected `<Head>` content is merged into its `<head>`.
 ///
 /// # Errors
 ///
@@ -166,7 +169,58 @@ pub fn render_with_layouts_and_context(
         return Ok(html);
     }
     let head_html = build_head(&state, config).join("");
-    Ok(document::build_document(&head_html, &html, config.pretty))
+    Ok(build_layout_document(&head_html, &html, config.pretty))
+}
+
+fn build_layout_document(head_html: &str, body_html: &str, pretty: bool) -> String {
+    let Some(html_start) = body_html.find("<html") else {
+        return document::build_document(head_html, body_html, pretty);
+    };
+    let prefix = &body_html[..html_start];
+    if !prefix.trim().is_empty() && prefix.trim() != "<!DOCTYPE html>" {
+        return document::build_document(head_html, body_html, pretty);
+    }
+
+    let html = &body_html[html_start..];
+    let Some(html_open_end) = html.find('>').map(|end| end + 1) else {
+        return document::build_document(head_html, body_html, pretty);
+    };
+    let head_open_end = html[html_open_end..].find("<head").and_then(|offset| {
+        let start = html_open_end + offset;
+        let after_name = html.as_bytes().get(start + "<head".len())?;
+        if *after_name != b'>' && !after_name.is_ascii_whitespace() {
+            return None;
+        }
+        html[start..].find('>').map(|end| start + end + 1)
+    });
+    let insert_at = head_open_end.unwrap_or(html_open_end);
+    let mut document = String::with_capacity(body_html.len() + head_html.len() + 32);
+    document.push_str("<!DOCTYPE html>");
+    if pretty {
+        document.push('\n');
+    }
+    document.push_str(&html[..insert_at]);
+
+    if head_open_end.is_some() {
+        if pretty && !head_html.is_empty() {
+            document.push_str("\n    ");
+        }
+        document.push_str(head_html);
+        if pretty && !head_html.is_empty() {
+            document.push_str("\n  ");
+        }
+    } else if pretty {
+        document.push_str("\n  <head>\n    ");
+        document.push_str(head_html);
+        document.push_str("\n  </head>\n");
+    } else {
+        document.push_str("<head>");
+        document.push_str(head_html);
+        document.push_str("</head>");
+    }
+
+    document.push_str(&html[insert_at..]);
+    document
 }
 
 /// Render a TSX file with an optional checked or in-memory source context.
