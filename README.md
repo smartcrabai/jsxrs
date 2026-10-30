@@ -401,6 +401,8 @@ Elements that can be added to the document head:
 - Self-closing tags (img, br, hr, input, etc.)
 - JSX Fragments (`<>...</>`)
 - Props and expressions (`{props.value}`, `{1 + 1}`)
+- Top-level conditional and logical-and JSX returns
+- Array and string `.length` access in prop expressions
 - Type annotations in TSX files
 - Arrow function and function declarations
 - Component composition
