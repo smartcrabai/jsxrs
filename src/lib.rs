@@ -23,6 +23,7 @@ pub use error::JsxrsError;
 pub use jsxrs_macros::component;
 #[cfg(feature = "axum")]
 pub use jsxrs_macros::routes;
+pub use source::SourceMap;
 
 #[doc(hidden)]
 pub mod __private {
@@ -32,7 +33,7 @@ pub mod __private {
 }
 
 use std::borrow::Cow;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
@@ -97,21 +98,115 @@ pub fn render_file(
     render_file_with_context(path, props, config, &CheckedRenderContext::default())
 }
 
-/// Render a checked component using a separate source-root context.
+/// Render a page with its layouts, from the outermost path to the innermost.
 ///
-/// This keeps checked-source state out of [`RenderConfig`] while allowing
-/// generated component modules to preserve their compile-time source set.
+/// Layouts receive the page props and `children`, containing the already-rendered inner HTML.
+/// Head content and Tailwind classes are collected across the entire chain.
 ///
 /// # Errors
 ///
-/// Returns an error if checked sources are unavailable, changed, or cannot be rendered.
+/// Returns an error if any source cannot be read, parsed, or rendered.
+pub fn render_with_layouts(
+    page_file: &Path,
+    layouts: &[PathBuf],
+    props: &Value,
+    config: &RenderConfig,
+) -> Result<String, JsxrsError> {
+    render_with_layouts_and_context(
+        page_file,
+        layouts,
+        props,
+        config,
+        &CheckedRenderContext::default(),
+    )
+}
+
+/// Render a page and its layouts using a source context, such as a [`SourceMap`].
+///
+/// # Errors
+///
+/// Returns an error if any source cannot be resolved, parsed, or rendered.
+pub fn render_with_layouts_and_context(
+    page_file: &Path,
+    layouts: &[PathBuf],
+    props: &Value,
+    config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
+) -> Result<String, JsxrsError> {
+    let mut state = renderer::RenderState::new();
+    let page_config = RenderConfig {
+        base_dir: page_file.parent().map(Path::to_path_buf),
+        fragment: true,
+        ..config.clone()
+    };
+    let mut html = render_path_into(page_file, props, &page_config, checked_context, &mut state)?;
+
+    for layout_path in layouts.iter().rev() {
+        let mut layout_props = props.as_object().cloned().unwrap_or_default();
+        if !props.is_object() {
+            layout_props.insert("pageProps".to_owned(), props.clone());
+        }
+        layout_props.insert("children".to_owned(), serde_json::json!({ "__html": html }));
+        let layout_props = Value::Object(layout_props);
+        let layout_config = RenderConfig {
+            base_dir: layout_path.parent().map(Path::to_path_buf),
+            fragment: true,
+            ..config.clone()
+        };
+        html = render_path_into(
+            layout_path,
+            &layout_props,
+            &layout_config,
+            checked_context,
+            &mut state,
+        )?;
+    }
+
+    if config.fragment {
+        return Ok(html);
+    }
+    let head_html = build_head(&state, config).join("");
+    Ok(document::build_document(&head_html, &html, config.pretty))
+}
+
+/// Render a TSX file with an optional checked or in-memory source context.
+///
+/// This keeps source state out of [`RenderConfig`] while allowing generated components to retain
+/// their compile-time source set or use an embedded [`SourceMap`].
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be read or resolved, or if parsing or rendering fails.
 pub fn render_file_with_context(
     path: &Path,
     props: &Value,
     config: &RenderConfig,
     checked_context: &CheckedRenderContext,
 ) -> Result<String, JsxrsError> {
-    let (source, file_identity) = if let Some(checked_sources) = checked_context.checked_sources() {
+    let mut state = renderer::RenderState::new();
+    let body_html = render_path_into(path, props, config, checked_context, &mut state)?;
+    if config.fragment {
+        return Ok(body_html);
+    }
+    let head_html = build_head(&state, config).join("");
+    Ok(document::build_document(
+        &head_html,
+        &body_html,
+        config.pretty,
+    ))
+}
+
+fn render_path_into(
+    path: &Path,
+    props: &Value,
+    config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
+    state: &mut renderer::RenderState,
+) -> Result<String, JsxrsError> {
+    let (source, file_identity) = if let Some(source_map) = checked_context.source_map() {
+        let identity = path.to_path_buf();
+        (Cow::Borrowed(source_map.source(&identity)?), Some(identity))
+    } else if let Some(checked_sources) = checked_context.checked_sources() {
         let source_root = source::runtime_source_root(checked_context.source_root())?;
         checked_sources.validate(&source_root)?;
         let identity = source::source_identity(path, &source_root)?;
@@ -130,14 +225,14 @@ pub fn render_file_with_context(
         .as_deref()
         .unwrap_or(path)
         .file_name()
-        .map(|f| f.to_string_lossy().into_owned())
+        .map(|name| name.to_string_lossy().into_owned())
         .ok_or_else(|| JsxrsError::FileNotFound(path.to_path_buf()))?;
-
-    let checked_context = file_identity.map_or_else(
+    let source_context = file_identity.map_or_else(
         || checked_context.clone(),
         |identity| checked_context.clone().with_source_path(identity),
     );
-    render_string_with_context(source.as_ref(), &file_name, props, config, &checked_context)
+    let (module, _) = parser::parse_source(source.as_ref(), &file_name)?;
+    renderer::render_module_with_state(&module.body, props, config, &source_context, state)
 }
 
 fn build_head(state: &renderer::RenderState, config: &RenderConfig) -> Vec<String> {

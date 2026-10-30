@@ -87,6 +87,89 @@ impl CheckedSourceSet {
             })
     }
 }
+/// An in-memory set of TSX sources used to resolve pages and relative imports.
+#[derive(Clone, Debug, Default)]
+pub struct SourceMap {
+    files: HashMap<PathBuf, &'static str>,
+}
+
+impl SourceMap {
+    /// Build a source map from normalized, source-root-relative paths and source text.
+    #[must_use]
+    pub fn new(files: Vec<(&'static str, &'static str)>) -> Self {
+        Self {
+            files: files
+                .into_iter()
+                .map(|(path, source)| (PathBuf::from(path), source))
+                .collect(),
+        }
+    }
+
+    pub(crate) fn source(&self, path: &Path) -> Result<&'static str, JsxrsError> {
+        validate_relative_path(path)?;
+        self.files
+            .get(path)
+            .copied()
+            .ok_or_else(|| JsxrsError::FileNotFound(path.to_path_buf()))
+    }
+
+    pub(crate) fn resolve_import(
+        &self,
+        from: &Path,
+        specifier: &str,
+    ) -> Result<PathBuf, JsxrsError> {
+        const EXTENSIONS: &[&str] = &[".tsx", ".jsx", ".ts", ".js"];
+        const INDEX_EXTENSIONS: &[&str] = &["/index.tsx", "/index.jsx"];
+
+        let base = from.parent().unwrap_or_else(|| Path::new(""));
+        let candidate =
+            normalize_source_path(&base.join(specifier.strip_prefix("./").unwrap_or(specifier)))
+                .ok_or_else(|| JsxrsError::ImportNotFound {
+                    path: specifier.to_owned(),
+                })?;
+        if self.files.contains_key(&candidate) {
+            return Ok(candidate);
+        }
+        for extension in EXTENSIONS {
+            let with_extension = append_suffix(&candidate, extension);
+            if self.files.contains_key(&with_extension) {
+                return Ok(with_extension);
+            }
+        }
+        for extension in INDEX_EXTENSIONS {
+            let index_path = append_suffix(&candidate, extension);
+            if self.files.contains_key(&index_path) {
+                return Ok(index_path);
+            }
+        }
+        Err(JsxrsError::ImportNotFound {
+            path: specifier.to_owned(),
+        })
+    }
+}
+
+fn normalize_source_path(path: &Path) -> Option<PathBuf> {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(name) => normalized.push(name),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    return None;
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    (!normalized.as_os_str().is_empty()).then_some(normalized)
+}
+
+fn append_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut value = path.as_os_str().to_os_string();
+    value.push(suffix);
+    PathBuf::from(value)
+}
 
 pub(crate) fn runtime_source_root(configured: Option<&Path>) -> Result<PathBuf, JsxrsError> {
     match configured {
@@ -119,7 +202,7 @@ fn validate_relative_path(path: &Path) -> Result<(), JsxrsError> {
             .any(|component| !matches!(component, Component::Normal(_)))
     {
         return Err(JsxrsError::Unsupported(format!(
-            "checked source identity must be a normalized relative path: {}",
+            "source identity must be a normalized relative path: {}",
             path.display()
         )));
     }

@@ -21,11 +21,12 @@ pub struct RenderConfig {
     pub fragment: bool,
 }
 
-/// Runtime context for rendering sources checked by `component!` or `routes!`.
+/// Runtime context for checked components, routes, and in-memory source maps.
 #[derive(Debug, Clone, Default)]
 pub struct CheckedRenderContext {
     source_root: Option<PathBuf>,
     checked_sources: Option<Arc<crate::__private::CheckedSourceSet>>,
+    source_map: Option<Arc<crate::source::SourceMap>>,
     source_path: Option<PathBuf>,
 }
 
@@ -59,12 +60,23 @@ impl CheckedRenderContext {
         self
     }
 
+    /// Resolve the requested source files and their relative imports from memory.
+    #[must_use]
+    pub fn with_source_map(mut self, source_map: Arc<crate::SourceMap>) -> Self {
+        self.source_map = Some(source_map);
+        self
+    }
+
     pub(crate) fn source_root(&self) -> Option<&std::path::Path> {
         self.source_root.as_deref()
     }
 
     pub(crate) fn checked_sources(&self) -> Option<&Arc<crate::__private::CheckedSourceSet>> {
         self.checked_sources.as_ref()
+    }
+
+    pub(crate) fn source_map(&self) -> Option<&Arc<crate::SourceMap>> {
+        self.source_map.as_ref()
     }
 
     pub(crate) fn source_path(&self) -> Option<&std::path::Path> {

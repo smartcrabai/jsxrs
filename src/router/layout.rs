@@ -17,33 +17,5 @@ pub fn render_with_layouts(
     config: &RenderConfig,
     checked_context: &CheckedRenderContext,
 ) -> Result<String, JsxrsError> {
-    let fragment_config = RenderConfig {
-        fragment: true,
-        base_dir: Some(page_file.parent().unwrap_or(Path::new(".")).to_path_buf()),
-        ..config.clone()
-    };
-
-    // Render the page itself
-    let mut html =
-        crate::render_file_with_context(page_file, props, &fragment_config, checked_context)?;
-
-    // Apply layouts from innermost to outermost
-    for layout_path in layouts.iter().rev() {
-        let mut layout_props_map = props.as_object().cloned().unwrap_or_default();
-        layout_props_map.insert("children".into(), serde_json::json!({ "__html": html }));
-        let layout_props = Value::Object(layout_props_map);
-        let layout_config = RenderConfig {
-            fragment: true,
-            base_dir: Some(layout_path.parent().unwrap_or(Path::new(".")).to_path_buf()),
-            ..config.clone()
-        };
-        html = crate::render_file_with_context(
-            layout_path,
-            &layout_props,
-            &layout_config,
-            checked_context,
-        )?;
-    }
-
-    Ok(html)
+    crate::render_with_layouts_and_context(page_file, layouts, props, config, checked_context)
 }

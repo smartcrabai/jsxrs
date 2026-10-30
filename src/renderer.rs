@@ -38,21 +38,29 @@ impl RenderState {
     }
 }
 
-/// Render a parsed module to body HTML.
+/// Render a parsed module to body HTML and accumulated render state.
 pub fn render_module(
     items: &[ModuleItem],
     props: &Value,
     config: &RenderConfig,
     checked_context: &CheckedRenderContext,
 ) -> Result<(String, RenderState), JsxrsError> {
+    let mut state = RenderState::new();
+    let html = render_module_with_state(items, props, config, checked_context, &mut state)?;
+    Ok((html, state))
+}
+
+pub(crate) fn render_module_with_state(
+    items: &[ModuleItem],
+    props: &Value,
+    config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
+    state: &mut RenderState,
+) -> Result<String, JsxrsError> {
     let imports = export::collect_imports(items);
     let ctx = EvalContext::new(props.clone());
-    let mut state = RenderState::new();
-
     let jsx = export::find_default_export_jsx(items)?;
-    let html = render_expr(&jsx, &ctx, config, checked_context, &imports, &mut state)?;
-
-    Ok((html, state))
+    render_expr(&jsx, &ctx, config, checked_context, &imports, state)
 }
 
 pub(crate) fn render_expr(
@@ -125,9 +133,26 @@ fn render_component(
     let import_path = imports
         .get(tag)
         .ok_or_else(|| JsxrsError::ImportNotFound { path: tag.into() })?;
-    let (resolved, source, component_config, component_context) = if let Some(checked_sources) =
-        checked_context.checked_sources()
+    let (resolved, source, component_config, component_context) = if let Some(source_map) =
+        checked_context.source_map()
     {
+        let importer = checked_context.source_path().ok_or_else(|| {
+            JsxrsError::Unsupported(
+                "source-map rendering has no current source identity".to_owned(),
+            )
+        })?;
+        let resolved = source_map.resolve_import(importer, import_path)?;
+        let source = Cow::Borrowed(source_map.source(&resolved)?);
+        let component_config = RenderConfig {
+            base_dir: resolved
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .or_else(|| config.base_dir.clone()),
+            ..config.clone()
+        };
+        let component_context = checked_context.clone().with_source_path(resolved.clone());
+        (resolved, source, component_config, component_context)
+    } else if let Some(checked_sources) = checked_context.checked_sources() {
         let importer = checked_context.source_path().ok_or_else(|| {
             JsxrsError::Unsupported("checked rendering has no current source identity".to_owned())
         })?;
