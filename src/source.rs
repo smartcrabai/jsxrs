@@ -87,6 +87,63 @@ impl CheckedSourceSet {
             })
     }
 }
+/// An in-memory set of TSX sources used to resolve pages and relative imports.
+#[derive(Clone, Debug, Default)]
+pub struct SourceMap {
+    files: HashMap<PathBuf, &'static str>,
+}
+
+impl SourceMap {
+    /// Build a source map from normalized, source-root-relative paths and source text.
+    #[must_use]
+    pub fn new(files: Vec<(&'static str, &'static str)>) -> Self {
+        Self {
+            files: files
+                .into_iter()
+                .map(|(path, source)| (PathBuf::from(path), source))
+                .collect(),
+        }
+    }
+
+    pub(crate) fn source(&self, path: &Path) -> Result<&'static str, JsxrsError> {
+        validate_relative_path(path)?;
+        self.files
+            .get(path)
+            .copied()
+            .ok_or_else(|| JsxrsError::FileNotFound(path.to_path_buf()))
+    }
+
+    pub(crate) fn resolve_import(
+        &self,
+        from: &Path,
+        specifier: &str,
+    ) -> Result<PathBuf, JsxrsError> {
+        let base = from.parent().unwrap_or_else(|| Path::new(""));
+        let resolved = jsxrs_core::resolver::resolve_import_with(specifier, base, |candidate| {
+            normalize_source_path(candidate).is_some_and(|path| self.files.contains_key(&path))
+        })?;
+        normalize_source_path(&resolved).ok_or_else(|| JsxrsError::ImportNotFound {
+            path: specifier.to_owned(),
+        })
+    }
+}
+
+fn normalize_source_path(path: &Path) -> Option<PathBuf> {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(name) => normalized.push(name),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    return None;
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    (!normalized.as_os_str().is_empty()).then_some(normalized)
+}
 
 pub(crate) fn runtime_source_root(configured: Option<&Path>) -> Result<PathBuf, JsxrsError> {
     match configured {
@@ -119,7 +176,7 @@ fn validate_relative_path(path: &Path) -> Result<(), JsxrsError> {
             .any(|component| !matches!(component, Component::Normal(_)))
     {
         return Err(JsxrsError::Unsupported(format!(
-            "checked source identity must be a normalized relative path: {}",
+            "source identity must be a normalized relative path: {}",
             path.display()
         )));
     }

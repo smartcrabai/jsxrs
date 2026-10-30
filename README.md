@@ -341,6 +341,61 @@ pub fn render_file(
 ) -> Result<String, JsxrsError>
 ```
 
+### `render_with_layouts`
+
+Renders a page inside layouts supplied outermost first. `<Head>` entries and Tailwind
+classes from the page and every layout are merged into one document. If the outermost
+layout returns `<html>`, it is used as the document root.
+
+Object props are copied into each layout; non-object values are available as `props.pageProps`.
+
+```rust
+pub fn render_with_layouts(
+    page_file: &Path,
+    layouts: &[PathBuf],
+    props: &Value,
+    config: &RenderConfig,
+) -> Result<String, JsxrsError>
+```
+
+The context-aware variant accepts an in-memory source map:
+
+```rust
+pub fn render_with_layouts_and_context(
+    page_file: &Path,
+    layouts: &[PathBuf],
+    props: &Value,
+    config: &RenderConfig,
+    context: &CheckedRenderContext,
+) -> Result<String, JsxrsError>
+
+impl CheckedRenderContext {
+    pub fn with_source_map(self, source_map: Arc<SourceMap>) -> Self
+}
+```
+
+For embedded application templates, construct a `SourceMap` from normalized
+paths relative to one source root and pass it through `CheckedRenderContext`:
+
+```rust
+let sources = Arc::new(SourceMap::new(vec![
+    ("app/page.tsx", include_str!("../app/page.tsx")),
+    ("app/layout.tsx", include_str!("../app/layout.tsx")),
+]));
+let context = CheckedRenderContext::new().with_source_map(sources);
+let html = render_with_layouts_and_context(
+    Path::new("app/page.tsx"),
+    &[PathBuf::from("app/layout.tsx")],
+    &props,
+    &config,
+    &context,
+)?;
+```
+
+Relative component imports resolve against the importing source path in the
+map; missing or escaping paths return an error without consulting the
+filesystem.
+
 ### `generate_types`
 
 Generates Rust struct definitions from TypeScript interface declarations.

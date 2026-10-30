@@ -23,6 +23,7 @@ pub use error::JsxrsError;
 pub use jsxrs_macros::component;
 #[cfg(feature = "axum")]
 pub use jsxrs_macros::routes;
+pub use source::SourceMap;
 
 #[doc(hidden)]
 pub mod __private {
@@ -32,7 +33,7 @@ pub mod __private {
 }
 
 use std::borrow::Cow;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
@@ -47,28 +48,17 @@ pub fn render_string(
     props: &Value,
     config: &RenderConfig,
 ) -> Result<String, JsxrsError> {
-    render_string_with_context(
-        source,
-        file_name,
-        props,
-        config,
-        &CheckedRenderContext::default(),
-    )
-}
-
-fn render_string_with_context(
-    source: &str,
-    file_name: &str,
-    props: &Value,
-    config: &RenderConfig,
-    checked_context: &CheckedRenderContext,
-) -> Result<String, JsxrsError> {
     if source.is_empty() {
         return Err(JsxrsError::NoDefaultExport);
     }
 
     let (module, _cm) = parser::parse_source(source, file_name)?;
-    let (body_html, state) = renderer::render_module(&module.body, props, config, checked_context)?;
+    let (body_html, state) = renderer::render_module(
+        &module.body,
+        props,
+        config,
+        &CheckedRenderContext::default(),
+    )?;
 
     if config.fragment {
         return Ok(body_html);
@@ -97,21 +87,207 @@ pub fn render_file(
     render_file_with_context(path, props, config, &CheckedRenderContext::default())
 }
 
-/// Render a checked component using a separate source-root context.
+/// Render a page with its layouts, from the outermost path to the innermost.
 ///
-/// This keeps checked-source state out of [`RenderConfig`] while allowing
-/// generated component modules to preserve their compile-time source set.
+/// Object props are copied into each layout; a non-object value is available as
+/// `props.pageProps`. The `children` prop contains the already-rendered inner HTML.
+/// Head content and Tailwind classes are collected across the entire chain.
+/// A root layout returning `<html>` is the document root.
+/// Collected `<Head>` content is merged into its `<head>`.
 ///
 /// # Errors
 ///
-/// Returns an error if checked sources are unavailable, changed, or cannot be rendered.
+/// Returns an error if any source cannot be read, parsed, or rendered.
+pub fn render_with_layouts(
+    page_file: &Path,
+    layouts: &[PathBuf],
+    props: &Value,
+    config: &RenderConfig,
+) -> Result<String, JsxrsError> {
+    render_with_layouts_and_context(
+        page_file,
+        layouts,
+        props,
+        config,
+        &CheckedRenderContext::default(),
+    )
+}
+
+/// Render a page and its layouts using a source context, such as a [`SourceMap`].
+///
+/// # Errors
+///
+/// Returns an error if any source cannot be resolved, parsed, or rendered.
+pub fn render_with_layouts_and_context(
+    page_file: &Path,
+    layouts: &[PathBuf],
+    props: &Value,
+    config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
+) -> Result<String, JsxrsError> {
+    let mut state = renderer::RenderState::new();
+    let page_config = RenderConfig {
+        base_dir: page_file.parent().map(Path::to_path_buf),
+        fragment: true,
+        ..config.clone()
+    };
+    let mut html = render_path_into(page_file, props, &page_config, checked_context, &mut state)?;
+
+    for layout_path in layouts.iter().rev() {
+        let mut layout_props = props.as_object().cloned().unwrap_or_default();
+        if !props.is_object() {
+            layout_props.insert("pageProps".to_owned(), props.clone());
+        }
+        let mut children = serde_json::Map::new();
+        children.insert("__html".to_owned(), Value::String(html));
+        layout_props.insert("children".to_owned(), Value::Object(children));
+        let layout_props = Value::Object(layout_props);
+        let layout_config = RenderConfig {
+            base_dir: layout_path.parent().map(Path::to_path_buf),
+            fragment: true,
+            ..config.clone()
+        };
+        html = render_path_into(
+            layout_path,
+            &layout_props,
+            &layout_config,
+            checked_context,
+            &mut state,
+        )?;
+    }
+
+    if config.fragment {
+        return Ok(html);
+    }
+    let head_html = build_head(&state, config).join("");
+    Ok(build_layout_document(&head_html, &html, config.pretty))
+}
+
+fn build_layout_document(head_html: &str, body_html: &str, pretty: bool) -> String {
+    let Some((html_start, _)) = find_opening_tag(body_html, "html", 0) else {
+        return document::build_document(head_html, body_html, pretty);
+    };
+    let prefix = &body_html[..html_start];
+    if !prefix.trim().is_empty() && prefix.trim() != "<!DOCTYPE html>" {
+        return document::build_document(head_html, body_html, pretty);
+    }
+
+    let html = &body_html[html_start..];
+    let Some(html_open_end) = find_tag_end(html, "<html".len()) else {
+        return document::build_document(head_html, body_html, pretty);
+    };
+    let head_open = find_opening_tag(html, "head", html_open_end);
+    let body_open = find_opening_tag(html, "body", html_open_end);
+    let head_open_end = head_open
+        .filter(|(start, _)| body_open.is_none_or(|(body_start, _)| *start < body_start))
+        .map(|(_, end)| end);
+    let insert_at =
+        head_open_end.unwrap_or_else(|| body_open.map_or(html_open_end, |(start, _)| start));
+    let mut document = String::with_capacity(body_html.len() + head_html.len() + 32);
+    document.push_str("<!DOCTYPE html>");
+    if pretty {
+        document.push('\n');
+    }
+    document.push_str(&html[..insert_at]);
+
+    if head_open_end.is_some() {
+        if pretty && !head_html.is_empty() {
+            document.push_str("\n    ");
+        }
+        document.push_str(head_html);
+        if pretty && !head_html.is_empty() {
+            document.push_str("\n  ");
+        }
+    } else if pretty {
+        document.push_str("\n  <head>\n    ");
+        document.push_str(head_html);
+        document.push_str("\n  </head>\n");
+    } else {
+        document.push_str("<head>");
+        document.push_str(head_html);
+        document.push_str("</head>");
+    }
+
+    document.push_str(&html[insert_at..]);
+    document
+}
+
+fn find_opening_tag(html: &str, tag: &str, from: usize) -> Option<(usize, usize)> {
+    let tag_open_len = tag.len() + 1;
+    let mut search_from = from;
+    while let Some(offset) = html.get(search_from..)?.find('<') {
+        let start = search_from + offset;
+        if html[start + 1..].starts_with(tag)
+            && html
+                .as_bytes()
+                .get(start + tag_open_len)
+                .is_some_and(|byte| *byte == b'>' || byte.is_ascii_whitespace())
+        {
+            let end = find_tag_end(&html[start..], tag_open_len)?;
+            return Some((start, start + end));
+        }
+        search_from = start + 1;
+    }
+    None
+}
+
+fn find_tag_end(tag: &str, tag_open_len: usize) -> Option<usize> {
+    let mut quote = None;
+    for (index, byte) in tag
+        .as_bytes()
+        .iter()
+        .copied()
+        .enumerate()
+        .skip(tag_open_len)
+    {
+        match quote {
+            Some(delimiter) if byte == delimiter => quote = None,
+            None if byte == b'\'' || byte == b'"' => quote = Some(byte),
+            None if byte == b'>' => return Some(index + 1),
+            Some(_) | None => {}
+        }
+    }
+    None
+}
+
+/// Render a TSX file with an optional checked or in-memory source context.
+///
+/// This keeps source state out of [`RenderConfig`] while allowing generated components to retain
+/// their compile-time source set or use an embedded [`SourceMap`].
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be read or resolved, or if parsing or rendering fails.
 pub fn render_file_with_context(
     path: &Path,
     props: &Value,
     config: &RenderConfig,
     checked_context: &CheckedRenderContext,
 ) -> Result<String, JsxrsError> {
-    let (source, file_identity) = if let Some(checked_sources) = checked_context.checked_sources() {
+    let mut state = renderer::RenderState::new();
+    let body_html = render_path_into(path, props, config, checked_context, &mut state)?;
+    if config.fragment {
+        return Ok(body_html);
+    }
+    let head_html = build_head(&state, config).join("");
+    Ok(document::build_document(
+        &head_html,
+        &body_html,
+        config.pretty,
+    ))
+}
+
+fn render_path_into(
+    path: &Path,
+    props: &Value,
+    config: &RenderConfig,
+    checked_context: &CheckedRenderContext,
+    state: &mut renderer::RenderState,
+) -> Result<String, JsxrsError> {
+    let (source, file_identity) = if let Some(source_map) = checked_context.source_map() {
+        let identity = path.to_path_buf();
+        (Cow::Borrowed(source_map.source(&identity)?), Some(identity))
+    } else if let Some(checked_sources) = checked_context.checked_sources() {
         let source_root = source::runtime_source_root(checked_context.source_root())?;
         checked_sources.validate(&source_root)?;
         let identity = source::source_identity(path, &source_root)?;
@@ -130,14 +306,14 @@ pub fn render_file_with_context(
         .as_deref()
         .unwrap_or(path)
         .file_name()
-        .map(|f| f.to_string_lossy().into_owned())
+        .map(|name| name.to_string_lossy().into_owned())
         .ok_or_else(|| JsxrsError::FileNotFound(path.to_path_buf()))?;
-
-    let checked_context = file_identity.map_or_else(
+    let source_context = file_identity.map_or_else(
         || checked_context.clone(),
         |identity| checked_context.clone().with_source_path(identity),
     );
-    render_string_with_context(source.as_ref(), &file_name, props, config, &checked_context)
+    let (module, _) = parser::parse_source(source.as_ref(), &file_name)?;
+    renderer::render_module_with_state(&module.body, props, config, &source_context, state)
 }
 
 fn build_head(state: &renderer::RenderState, config: &RenderConfig) -> Vec<String> {
