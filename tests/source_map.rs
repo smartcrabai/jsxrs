@@ -166,6 +166,45 @@ fn tailwind_classes_are_collected_across_page_and_layout() -> Result<(), Box<dyn
 }
 
 #[test]
+fn layout_document_handles_raw_html_attributes_and_custom_html_tags()
+-> Result<(), Box<dyn std::error::Error>> {
+    for (layout_source, props, expected) in [
+        (
+            "export default function Layout(props) { return <>{props.document}</>; }",
+            json!({
+                "document": {
+                    "__html": "<html data-note=\"1 > 0\"><body>raw</body></html>"
+                }
+            }),
+            r#"<html data-note="1 > 0"><head></head><body>raw</body>"#,
+        ),
+        (
+            "export default function Layout(props) { return <html-widget>{props.children}</html-widget>; }",
+            json!({}),
+            "<html><head></head><body><html-widget><span>page</span></html-widget></body>",
+        ),
+    ] {
+        let sources = Arc::new(SourceMap::new(vec![
+            ("app/layout.tsx", layout_source),
+            (
+                "app/page.tsx",
+                "export default function Page() { return <span>page</span>; }",
+            ),
+        ]));
+        let context = CheckedRenderContext::new().with_source_map(sources);
+        let html = render_with_layouts_and_context(
+            Path::new("app/page.tsx"),
+            &[PathBuf::from("app/layout.tsx")],
+            &props,
+            &RenderConfig::default(),
+            &context,
+        )?;
+        assert!(html.contains(expected), "{html}");
+    }
+    Ok(())
+}
+
+#[test]
 fn in_memory_imports_reject_missing_and_escaping_paths() {
     let missing = Arc::new(SourceMap::new(vec![(
         "app/page.tsx",

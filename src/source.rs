@@ -118,31 +118,11 @@ impl SourceMap {
         from: &Path,
         specifier: &str,
     ) -> Result<PathBuf, JsxrsError> {
-        const EXTENSIONS: &[&str] = &[".tsx", ".jsx", ".ts", ".js"];
-        const INDEX_EXTENSIONS: &[&str] = &["/index.tsx", "/index.jsx"];
-
         let base = from.parent().unwrap_or_else(|| Path::new(""));
-        let candidate =
-            normalize_source_path(&base.join(specifier.strip_prefix("./").unwrap_or(specifier)))
-                .ok_or_else(|| JsxrsError::ImportNotFound {
-                    path: specifier.to_owned(),
-                })?;
-        if self.files.contains_key(&candidate) {
-            return Ok(candidate);
-        }
-        for extension in EXTENSIONS {
-            let with_extension = append_suffix(&candidate, extension);
-            if self.files.contains_key(&with_extension) {
-                return Ok(with_extension);
-            }
-        }
-        for extension in INDEX_EXTENSIONS {
-            let index_path = append_suffix(&candidate, extension);
-            if self.files.contains_key(&index_path) {
-                return Ok(index_path);
-            }
-        }
-        Err(JsxrsError::ImportNotFound {
+        let resolved = jsxrs_core::resolver::resolve_import_with(specifier, base, |candidate| {
+            normalize_source_path(candidate).is_some_and(|path| self.files.contains_key(&path))
+        })?;
+        normalize_source_path(&resolved).ok_or_else(|| JsxrsError::ImportNotFound {
             path: specifier.to_owned(),
         })
     }
@@ -163,12 +143,6 @@ fn normalize_source_path(path: &Path) -> Option<PathBuf> {
         }
     }
     (!normalized.as_os_str().is_empty()).then_some(normalized)
-}
-
-fn append_suffix(path: &Path, suffix: &str) -> PathBuf {
-    let mut value = path.as_os_str().to_os_string();
-    value.push(suffix);
-    PathBuf::from(value)
 }
 
 pub(crate) fn runtime_source_root(configured: Option<&Path>) -> Result<PathBuf, JsxrsError> {

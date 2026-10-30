@@ -1,6 +1,5 @@
 mod discovery;
 mod handler;
-mod layout;
 
 pub use discovery::RouteEntry;
 

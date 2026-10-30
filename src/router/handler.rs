@@ -9,7 +9,6 @@ use serde_json::Value;
 use crate::config::{CheckedRenderContext, RenderConfig};
 
 use super::discovery::RouteEntry;
-use super::layout::render_with_layouts;
 
 /// Shared state for a route handler.
 #[derive(Clone)]
@@ -33,7 +32,7 @@ pub(crate) fn handle_dynamic(
 }
 
 fn render_route(handler: &RouteHandler, props: &Value) -> Response {
-    match render_with_layouts(
+    match crate::render_with_layouts_and_context(
         &handler.entry.page_file,
         &handler.entry.layouts,
         props,

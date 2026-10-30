@@ -48,28 +48,17 @@ pub fn render_string(
     props: &Value,
     config: &RenderConfig,
 ) -> Result<String, JsxrsError> {
-    render_string_with_context(
-        source,
-        file_name,
-        props,
-        config,
-        &CheckedRenderContext::default(),
-    )
-}
-
-fn render_string_with_context(
-    source: &str,
-    file_name: &str,
-    props: &Value,
-    config: &RenderConfig,
-    checked_context: &CheckedRenderContext,
-) -> Result<String, JsxrsError> {
     if source.is_empty() {
         return Err(JsxrsError::NoDefaultExport);
     }
 
     let (module, _cm) = parser::parse_source(source, file_name)?;
-    let (body_html, state) = renderer::render_module(&module.body, props, config, checked_context)?;
+    let (body_html, state) = renderer::render_module(
+        &module.body,
+        props,
+        config,
+        &CheckedRenderContext::default(),
+    )?;
 
     if config.fragment {
         return Ok(body_html);
@@ -149,7 +138,9 @@ pub fn render_with_layouts_and_context(
         if !props.is_object() {
             layout_props.insert("pageProps".to_owned(), props.clone());
         }
-        layout_props.insert("children".to_owned(), serde_json::json!({ "__html": html }));
+        let mut children = serde_json::Map::new();
+        children.insert("__html".to_owned(), Value::String(html));
+        layout_props.insert("children".to_owned(), Value::Object(children));
         let layout_props = Value::Object(layout_props);
         let layout_config = RenderConfig {
             base_dir: layout_path.parent().map(Path::to_path_buf),
@@ -173,7 +164,7 @@ pub fn render_with_layouts_and_context(
 }
 
 fn build_layout_document(head_html: &str, body_html: &str, pretty: bool) -> String {
-    let Some(html_start) = body_html.find("<html") else {
+    let Some((html_start, _)) = find_opening_tag(body_html, "html", 0) else {
         return document::build_document(head_html, body_html, pretty);
     };
     let prefix = &body_html[..html_start];
@@ -182,18 +173,16 @@ fn build_layout_document(head_html: &str, body_html: &str, pretty: bool) -> Stri
     }
 
     let html = &body_html[html_start..];
-    let Some(html_open_end) = html.find('>').map(|end| end + 1) else {
+    let Some(html_open_end) = find_tag_end(html, "<html".len()) else {
         return document::build_document(head_html, body_html, pretty);
     };
-    let head_open_end = html[html_open_end..].find("<head").and_then(|offset| {
-        let start = html_open_end + offset;
-        let after_name = html.as_bytes().get(start + "<head".len())?;
-        if *after_name != b'>' && !after_name.is_ascii_whitespace() {
-            return None;
-        }
-        html[start..].find('>').map(|end| start + end + 1)
-    });
-    let insert_at = head_open_end.unwrap_or(html_open_end);
+    let head_open = find_opening_tag(html, "head", html_open_end);
+    let body_open = find_opening_tag(html, "body", html_open_end);
+    let head_open_end = head_open
+        .filter(|(start, _)| body_open.is_none_or(|(body_start, _)| *start < body_start))
+        .map(|(_, end)| end);
+    let insert_at =
+        head_open_end.unwrap_or_else(|| body_open.map_or(html_open_end, |(start, _)| start));
     let mut document = String::with_capacity(body_html.len() + head_html.len() + 32);
     document.push_str("<!DOCTYPE html>");
     if pretty {
@@ -221,6 +210,44 @@ fn build_layout_document(head_html: &str, body_html: &str, pretty: bool) -> Stri
 
     document.push_str(&html[insert_at..]);
     document
+}
+
+fn find_opening_tag(html: &str, tag: &str, from: usize) -> Option<(usize, usize)> {
+    let tag_open_len = tag.len() + 1;
+    let mut search_from = from;
+    while let Some(offset) = html.get(search_from..)?.find('<') {
+        let start = search_from + offset;
+        if html[start + 1..].starts_with(tag)
+            && html
+                .as_bytes()
+                .get(start + tag_open_len)
+                .is_some_and(|byte| *byte == b'>' || byte.is_ascii_whitespace())
+        {
+            let end = find_tag_end(&html[start..], tag_open_len)?;
+            return Some((start, start + end));
+        }
+        search_from = start + 1;
+    }
+    None
+}
+
+fn find_tag_end(tag: &str, tag_open_len: usize) -> Option<usize> {
+    let mut quote = None;
+    for (index, byte) in tag
+        .as_bytes()
+        .iter()
+        .copied()
+        .enumerate()
+        .skip(tag_open_len)
+    {
+        match quote {
+            Some(delimiter) if byte == delimiter => quote = None,
+            None if byte == b'\'' || byte == b'"' => quote = Some(byte),
+            None if byte == b'>' => return Some(index + 1),
+            Some(_) | None => {}
+        }
+    }
+    None
 }
 
 /// Render a TSX file with an optional checked or in-memory source context.

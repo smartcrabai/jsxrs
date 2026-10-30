@@ -28,9 +28,10 @@ mod tests {
         );
         // Should be wrapped in root layout
         assert!(
-            body.contains("<html>"),
-            "body should contain html tag: {body}"
+            body.starts_with("<!DOCTYPE html><html>"),
+            "body should be a full HTML document: {body}"
         );
+        assert_eq!(body.matches("<html").count(), 1, "body: {body}");
         assert!(
             body.contains("<body>"),
             "body should contain body tag: {body}"

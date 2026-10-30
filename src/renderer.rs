@@ -143,13 +143,7 @@ fn render_component(
         })?;
         let resolved = source_map.resolve_import(importer, import_path)?;
         let source = Cow::Borrowed(source_map.source(&resolved)?);
-        let component_config = RenderConfig {
-            base_dir: resolved
-                .parent()
-                .map(std::path::Path::to_path_buf)
-                .or_else(|| config.base_dir.clone()),
-            ..config.clone()
-        };
+        let component_config = config.clone();
         let component_context = checked_context.clone().with_source_path(resolved.clone());
         (resolved, source, component_config, component_context)
     } else if let Some(checked_sources) = checked_context.checked_sources() {
