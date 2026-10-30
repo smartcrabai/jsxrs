@@ -150,6 +150,22 @@ fn should_render_false_root_ternary_branch_as_empty() -> Result<(), Box<dyn std:
     Ok(())
 }
 
+#[test]
+fn should_render_true_root_ternary_branch_as_empty() -> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return props.returnTrue ? true : null;
+}";
+    let result = render_string(
+        source,
+        "p.jsx",
+        &json!({"returnTrue": true}),
+        &minimal_config(),
+    )?;
+
+    assert_eq!(extract_body(&result).ok_or("missing body")?, "");
+    Ok(())
+}
+
 // --- Ternary operator ---
 
 #[test]

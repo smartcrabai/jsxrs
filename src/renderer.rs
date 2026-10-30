@@ -92,7 +92,7 @@ pub(crate) fn render_expr(
 }
 
 fn render_value(val: &Value) -> String {
-    if matches!(val, Value::Null | Value::Bool(false)) {
+    if matches!(val, Value::Null | Value::Bool(_)) {
         return String::new();
     }
     if let Some(raw) = eval::extract_raw_html(val) {

@@ -294,6 +294,50 @@ fn validate_root_expr(
             module,
             imported_components,
         ),
+        Expr::Cond(conditional) => {
+            validate_expr(
+                &conditional.test,
+                RenderContext::Value,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )?;
+            validate_expr(
+                &conditional.cons,
+                RenderContext::Root,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )?;
+            validate_expr(
+                &conditional.alt,
+                RenderContext::Root,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )
+        }
+        Expr::Bin(binary) if binary.op == BinaryOp::LogicalAnd => {
+            validate_expr(
+                &binary.left,
+                RenderContext::Value,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )?;
+            validate_expr(
+                &binary.right,
+                RenderContext::Root,
+                fields,
+                locals,
+                module,
+                imported_components,
+            )
+        }
         Expr::Paren(paren) => validate_expr(
             &paren.expr,
             RenderContext::Root,
@@ -1261,6 +1305,22 @@ mod tests {
             "interface Props { show: boolean; }\n\
              export default function Page(props: Props) {\n\
                return <div>{props.show ? (<b>visible</b>) : null}</div>;\n\
+             }",
+        )
+    }
+
+    #[test]
+    fn accepts_root_conditional_and_logical_and_jsx() -> Result<(), JsxrsError> {
+        validate(
+            "interface Props { show: boolean; }\n\
+             export default function Page(props: Props) {\n\
+               return props.show ? <b>visible</b> : <b>hidden</b>;\n\
+             }",
+        )?;
+        validate(
+            "interface Props { show: boolean; }\n\
+             export default function Page(props: Props) {\n\
+               return (props.show && <b>visible</b>);\n\
              }",
         )
     }
