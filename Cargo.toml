@@ -6,7 +6,7 @@ resolver = "3"
 [workspace.package]
 edition = "2024"
 license = "Apache-2.0"
-version = "0.1.6"
+version = "0.1.7"
 
 [workspace.dependencies]
 bytes-str = "0.2.7"
@@ -40,8 +40,8 @@ default = []
 axum = { version = "0.8", optional = true }
 bytes-str.workspace = true
 encre-css = "0.21.0"
-jsxrs-core = { path = "crates/jsxrs-core", version = "0.1.6" }
-jsxrs-macros = { path = "crates/jsxrs-macros", version = "0.1.6" }
+jsxrs-core = { path = "crates/jsxrs-core", version = "0.1.7" }
+jsxrs-macros = { path = "crates/jsxrs-macros", version = "0.1.7" }
 serde.workspace = true
 serde_json.workspace = true
 swc_common.workspace = true

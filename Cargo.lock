@@ -787,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "jsxrs"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "axum",
  "axum-test",
@@ -806,7 +806,7 @@ dependencies = [
 
 [[package]]
 name = "jsxrs-core"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "bytes-str",
  "serde_json",
@@ -819,7 +819,7 @@ dependencies = [
 
 [[package]]
 name = "jsxrs-macros"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "jsxrs-core",
  "proc-macro-crate",
