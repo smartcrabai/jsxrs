@@ -401,6 +401,7 @@ Elements that can be added to the document head:
 - Self-closing tags (img, br, hr, input, etc.)
 - JSX Fragments (`<>...</>`)
 - Props and expressions (`{props.value}`, `{1 + 1}`)
+- Dynamic attribute booleans follow React semantics: `true` renders a bare attribute, `false`/`null`/`undefined` omit it, and `data-*`/`aria-*` booleans render as strings.
 - Type annotations in TSX files
 - Arrow function and function declarations
 - Component composition

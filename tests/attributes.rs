@@ -98,6 +98,24 @@ fn should_omit_boolean_attribute_when_value_is_false() -> Result<(), Box<dyn std
 }
 
 #[test]
+fn should_render_dynamic_boolean_attributes_with_react_semantics()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = r"export default function Page(props) {
+  return <input checked={props.checked} disabled={props.disabled} data-enabled={props.disabled} data-checked={props.checked} aria-checked={props.checked} value={props.nullable} missing={props.missing} />;
+}";
+    let props = json!({"checked": false, "disabled": true, "nullable": null});
+
+    let result = render_string(source, "page.jsx", &props, &minimal_config())?;
+
+    let body = extract_body(&result).ok_or("missing body")?;
+    assert_eq!(
+        body,
+        r#"<input disabled data-enabled="true" data-checked="false" aria-checked="false">"#
+    );
+    Ok(())
+}
+
+#[test]
 fn should_exclude_event_handler_attributes_from_html_output()
 -> Result<(), Box<dyn std::error::Error>> {
     // Given
