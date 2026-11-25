@@ -1,11 +1,11 @@
 {
   extends: [
-    'config:best-practices',
+    "config:best-practices"
   ],
   dependencyDashboard: {
     enabled: false,
   },
-  minimumReleaseAge: '3 days',
+  minimumReleaseAge: "3 days",
   lockFileMaintenance: {
     minimumReleaseAge: null,
   },
@@ -15,34 +15,38 @@
   packageRules: [
     {
       matchUpdateTypes: [
-        'minor',
-        'patch',
-        'digest',
-        'pinDigest',
+        "minor",
+        "patch",
+        "digest",
+        "pinDigest"
       ],
-      groupName: 'all minor, patch, and digest updates',
-      groupSlug: 'all-minor-patch-digest-updates',
+      groupName: "all minor, patch, and digest updates",
+      groupSlug: "all-minor-patch-digest-updates",
     },
     {
       matchUpdateTypes: [
-        'major',
+        "major"
       ],
       prBodyNotes: [
-        '<!-- renovate-major-update -->',
+        "<!-- renovate-major-update -->"
       ],
     },
     {
       matchManagers: [
-        'github-actions',
+        "github-actions"
       ],
-      minimumReleaseAge: '7 days',
+      minimumReleaseAge: "7 days"
     },
     {
+      // digest/pinDigest updates have no releaseTimestamp, so minimumReleaseAge
+      // (with the default minimumReleaseAgeBehaviour "timestamp-required") keeps
+      // renovate/stability-days pending forever. Must stay last to override the
+      // github-actions rule above.
       matchUpdateTypes: [
-        'digest',
-        'pinDigest',
+        "digest",
+        "pinDigest"
       ],
       minimumReleaseAge: null,
-    },
-  ],
+    }
+  ]
 }
